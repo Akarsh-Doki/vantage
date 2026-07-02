@@ -1,0 +1,62 @@
+# Tool configuration for the Vantage backend.
+# These checks enforce CLAUDE.md hard rules, not just style — see rule refs below.
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # import sorting
+    "N",         # naming
+    "UP",        # modernize syntax
+    "B",         # bugbear — likely bugs
+    "A",         # builtin shadowing
+    "C4",        # comprehension correctness
+    "DTZ",       # naive datetimes (timestamps must be tz-aware, like the DB)
+    "S",         # flake8-bandit — security: hardcoded secrets/SQL strings/etc. (rules 2, 3)
+    "ASYNC",     # blocking calls in async code (agents are async I/O — rule 6)
+    "T20",       # no stray print() — use logging
+    "ARG",       # unused arguments
+    "PIE",       # misc correctness
+    "PT",        # pytest style
+    "RET",       # return correctness
+    "SIM",       # simplifiable code
+    "PTH",       # pathlib over os.path
+    "PL",        # pylint: complexity caps, magic values
+    "RUF",       # ruff-native rules
+    "LOG",       # logging misuse
+    "TRY",       # exception-handling correctness (no bare swallows — rule 6)
+]
+ignore = [
+    "TRY003",   # long exception messages are fine
+    "PLR0913",  # >5 function args — Pydantic models and DI make this noisy
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: assert is the point, and hardcoded dummy creds/URLs are expected.
+"tests/**" = ["S101", "S105", "S106", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true                       # no untyped defs, no implicit Any — type holes are rule violations
+plugins = ["pydantic.mypy"]         # validates Pydantic models properly (rule 1)
+exclude = ["\\.venv"]
+warn_unreachable = true
+show_error_codes = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,73 @@
+# Pre-commit hooks — same tools as scripts/check.sh, run on staged files.
+# Versions are pinned for reproducibility and match backend/requirements.txt.
+# Install once with: backend/.venv/bin/pip install pre-commit && pre-commit install
+
+repos:
+  # --- hygiene + secrets (CLAUDE.md rule 2: nothing secret in git) ---------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-yaml
+      - id: check-json
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # --- backend --------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20 # matches ruff pin in backend/requirements.txt
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^backend/
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.5.1 # matches black pin in backend/requirements.txt
+    hooks:
+      - id: black
+        files: ^backend/
+
+  # --- local hooks (use the project's own toolchains) -----------------------
+  - repo: local
+    hooks:
+      - id: mypy
+        name: backend mypy (strict)
+        entry: bash -c 'cd backend && .venv/bin/mypy .'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
+      - id: eslint
+        name: frontend eslint
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: prettier
+        name: frontend prettier check
+        entry: npm --prefix frontend run format:check
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: gofmt
+        name: fetcher gofmt
+        entry: bash -c 'test -z "$(gofmt -l fetcher)" || { gofmt -l fetcher; exit 1; }'
+        language: system
+        files: ^fetcher/.*\.go$
+        pass_filenames: false
+
+      - id: go-vet
+        name: fetcher go vet
+        entry: bash -c 'cd fetcher && go vet ./...'
+        language: system
+        files: ^fetcher/.*\.go$
+        pass_filenames: false
