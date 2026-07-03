@@ -1,0 +1,3299 @@
+{
+  "_meta": {
+    "name": "Vantage Creative Knowledge Base",
+    "version": "3.0",
+    "purpose": "Seed data for the Vantage creative-director agent. The agent retrieves MECHANISMS (not campaigns) by matching business_type + goal + budget, remixes the mechanism into a fresh 2026-native idea grounded in the live cited research, then scores every idea against the rubric. Campaigns are stored as sourced example evidence.",
+    "how_to_use": "Embed each mechanism's embedding_text into pgvector. Retrieve top-k by semantic match to the research brief + goal, filtered/boosted by business_type and budget_level. Pass retrieved mechanisms + live research into the creative_director node. Score outputs with rubric. Cite campaigns (with their source field) when using them as proof.",
+    "curated_by": "senior creative director (human-curated + structured). This curation + structure is the proprietary moat vs. a raw model.",
+    "framing_guidance": "Present every figure in its STRONGEST TRUE form: round toward the real number and use confident phrasing ('more than 80%', 'over 8 in 10', 'billions of impressions' when sourced), and lead with the biggest legitimately-supported number. NEVER state a figure larger than the source supports (e.g., do NOT call 81% 'around 90%' — 81 is around 80, and the attached source will contradict it). Only present high/medium-confidence figures as fact; present low-confidence figures as 'widely reported' or omit. Every figure keeps its source so it can be shown on request. This is how output stays impressive AND defensible.",
+    "accuracy_note": "results_confidence flags: high = award body / brand financials / reputable trade press; medium = trade press or brand-reported single figures; low = contested, unverified, or no primary source. Some famous stats are inflated in popular retellings — flagged inline. Campaigns marked needs_sourcing:true were enumerated from research but not individually verified; source them before using their numbers as fact.",
+    "for_readers_and_employers": "Every campaign has a `source` and a `results_confidence` flag (high/medium/low). AWARD WINS (Cannes Lions, Effie, D&AD, Clio) and ACQUISITIONS/FINANCIAL FILINGS are independently verifiable = high. Most engagement/ROI numbers (views, impressions, ROI multiples) come from the winning agency's own award submissions and are NOT independently audited = medium (treat as self-reported). Contested or conflated figures are listed in `do_not_state_as_fact` and must never be presented as fact. This sourcing discipline is deliberate: it's what makes the tool trustworthy and keeps a small business that repeats a stat out of FTC trouble.",
+    "counts": {
+      "mechanisms": 52,
+      "campaigns": 143
+    }
+  },
+  "business_types": [
+    "local_service",
+    "restaurant",
+    "ecommerce_dtc",
+    "startup_saas",
+    "b2b",
+    "creator_personal_brand"
+  ],
+  "goals": [
+    "awareness",
+    "foot_traffic",
+    "lead_generation",
+    "product_launch",
+    "loyalty_retention",
+    "virality",
+    "trust_credibility"
+  ],
+  "budget_levels": [
+    "zero",
+    "low",
+    "medium",
+    "high"
+  ],
+  "rubric": {
+    "description": "Every generated idea must pass this. Reject below 7/10, or if it fails 'ownable', or matches a red_flag.",
+    "criteria": [
+      {
+        "id": "ownable",
+        "weight": 2,
+        "test": "Swap in a competitor's name. If it still works, it's generic — FAIL."
+      },
+      {
+        "id": "surprising_insight",
+        "weight": 2,
+        "test": "Is there a non-obvious human/behavioral truth or reframe?"
+      },
+      {
+        "id": "single_minded",
+        "weight": 1,
+        "test": "One memorable idea, sayable in one sentence?"
+      },
+      {
+        "id": "shareable",
+        "weight": 2,
+        "test": "Would a real person forward it unprompted (identity, humor, awe, utility)?"
+      },
+      {
+        "id": "on_strategy",
+        "weight": 1,
+        "test": "Dramatizes the business's real positioning gap and uses its distinctive assets?"
+      },
+      {
+        "id": "participatory",
+        "weight": 1,
+        "test": "Can the audience DO something (create, vote, hunt, duet, show-for-reward)?"
+      },
+      {
+        "id": "earns_attention",
+        "weight": 2,
+        "test": "Spreads with little/no paid media, vs. only working if you buy reach?"
+      },
+      {
+        "id": "truth_backed",
+        "weight": 1,
+        "test": "Backed by a genuine product/brand truth (hollow stunts backfire)?"
+      },
+      {
+        "id": "format_native",
+        "weight": 1,
+        "test": "Native to a 2025-26 channel (vertical video, reactive, UGC, AR)?"
+      },
+      {
+        "id": "budget_realistic",
+        "weight": 1,
+        "test": "Executable on THIS business's budget?"
+      }
+    ],
+    "red_flags_auto_reject": [
+      "discount-only ('run a 20% off promo')",
+      "'post more on social'",
+      "'make it go viral' as the strategy",
+      "logo-first with no idea",
+      "imitates the category leader with no twist",
+      "borrowed meme with no brand truth",
+      "no human insight",
+      "requires paid media just to be seen",
+      "undisclosed AI or fake reviews/testimonials (illegal under FTC rule)",
+      "indistinguishable AI-template output"
+    ]
+  },
+  "trends_2026": {
+    "short_form_video": "The default format; marketers rank it most effective. Global short-form video ad spend projected at more than $110 billion in 2025 (Statista Digital Video Advertising Outlook). TikTok ~40% share; Reels & Shorts ~20% each. Most viewers decide in the first seconds — front-load the hook, design sound-on vertical.",
+    "ugc_and_creators": "Real voices beat polish. The large majority of people (well over 80%) trust brands more when they share user-generated content (EnTribe, via Stack Influence). Micro-influencers outperform celebrity gloss for conversion.",
+    "reactive_meme": "Speed + cultural fluency win (Oreo, Aviation Gin, Duolingo). A standing fast-response capability is table stakes.",
+    "community_build_in_public": "Turn audiences into co-creators; founder-face and behind-the-scenes content build trust cheaply.",
+    "ai_disclosure_rules": "AI content is mainstream but regulated. FTC fake-review rule (16 CFR Part 465) live since Oct 21, 2024 bans AI-generated fake reviews/testimonials. EU AI Act Art. 50 transparency/labeling applies from Aug 2, 2026. Platforms (Meta, TikTok, YouTube) auto-label realistic synthetic content. RULE: label realistic AI content; never fake endorsements/reviews.",
+    "experiential": "Pop-ups/installations designed primarily to be captured as vertical video.",
+    "social_commerce": "Shoppable video collapses discovery-to-purchase."
+  },
+  "scrappy_small_business_playbook": [
+    "Founder-face first — the owner on camera is the cheapest, highest-trust content; consistency beats production value.",
+    "Tell an underdog story — 'help save our shop' rallies communities (a struggling sushi shop hit millions of views on TikTok).",
+    "Mine your own real behaviors for a challenge (Chipotle #LidFlip came from an employee skill).",
+    "Tag local creators and pages to distribute — many are happy to amplify a local story.",
+    "React fast to local/cultural moments (the small-brand version of Oreo's blackout tweet).",
+    "Reply to every comment — the comment section is your content pipeline.",
+    "Make one 'banger' a month rather than daily noise.",
+    "Use free AI tools to raise output — but disclose realistic AI content per platform/FTC/EU rules.",
+    "Treat virality as a spike to convert into email/loyalty, not a permanent state."
+  ],
+  "mechanisms": [
+    {
+      "id": "data_as_story",
+      "name": "Turn user data into a shareable personal story",
+      "definition": "Convert a customer's own data into a status-worthy artifact they broadcast.",
+      "why_it_works": "Identity/ego, social proof, FOMO. The story can't exist without you, so every share markets you.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "local_service",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "loyalty_retention",
+        "virality",
+        "awareness"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Auto-generated vertical story cards; AI personalization; multiplayer compare.",
+      "small_biz_example": "Gym sends each member a 'Your Year in Workouts' card; cafe: 'You drank 143 lattes — top 3% of regulars.'",
+      "examples": [
+        "spotify_wrapped",
+        "share_a_coke",
+        "nutella_jars"
+      ],
+      "embedding_text": "data as story personalized recap year in review shareable identity spotify wrapped usage stats loyalty"
+    },
+    {
+      "id": "costly_signal_truth",
+      "name": "Un-fakeable costly-signal truth",
+      "definition": "Show a truth so costly or ugly it can't be faked.",
+      "why_it_works": "Honesty heuristic; un-fakeable proof builds trust in low-trust categories.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "startup_saas",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "product_launch",
+        "awareness"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Raw founder proof videos, time-lapse, 'lab-test our own claims'.",
+      "small_biz_example": "Restaurant films the 5am market run daily; skincare brand posts an independent lab test.",
+      "examples": [
+        "moldy_whopper",
+        "dominos_pizza_turnaround",
+        "dollar_shave_club"
+      ],
+      "embedding_text": "costly signal truth radical transparency show ugly proof cannot be faked moldy whopper dominos honesty trust"
+    },
+    {
+      "id": "category_code_subversion",
+      "name": "Category-code subversion",
+      "definition": "Break the visual/tonal conventions of your category.",
+      "why_it_works": "Pattern interrupt + novelty; sell identity/entertainment, not features.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "product_launch",
+        "virality"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Anti-aesthetic content that looks unlike an ad; commit hard to an unexpected voice.",
+      "small_biz_example": "A boring B2B accountant with punk branding; a dentist with a horror-parody TikTok voice.",
+      "examples": [
+        "liquid_death",
+        "oatly",
+        "dove_real_beauty"
+      ],
+      "embedding_text": "category code subversion unexpected aesthetic sell identity commodity liquid death oatly irreverent voice"
+    },
+    {
+      "id": "founder_comedy",
+      "name": "Founder-led comedy",
+      "definition": "Founder as on-camera comedic lead naming a real frustration.",
+      "why_it_works": "Authenticity + parasocial trust; comedy earns attention; free.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "local_service",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "awareness",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Founder talking-head short-form; deadpan problem-agitation.",
+      "small_biz_example": "Salon owner doing 'things clients say' skits; SaaS founder's 'why our category is broken'.",
+      "examples": [
+        "dollar_shave_club",
+        "duolingo"
+      ],
+      "embedding_text": "founder led comedy human face humor deadpan problem agitation dollar shave club authentic"
+    },
+    {
+      "id": "challenge_nomination_loop",
+      "name": "Low-barrier challenge with a nomination loop",
+      "definition": "A trivially easy, filmable action + peer nomination + deadline.",
+      "why_it_works": "Social pressure, reciprocity, ego; nomination creates viral branching.",
+      "best_for_business": [
+        "restaurant",
+        "ecommerce_dtc",
+        "local_service",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "virality",
+        "awareness",
+        "foot_traffic"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "TikTok duet/stitch challenges on a trending sound; repurpose best entries as ads.",
+      "small_biz_example": "Gym's 30-day form challenge with a hashtag; cafe's 'guess the secret ingredient' duet.",
+      "examples": [
+        "als_ice_bucket",
+        "chipotle_guacdance"
+      ],
+      "embedding_text": "low barrier challenge nomination loop hashtag duet ice bucket guacdance filmable viral participation"
+    },
+    {
+      "id": "cultural_moment_hijack",
+      "name": "Cultural-moment hijack (newsjacking)",
+      "definition": "React to a live cultural event near real-time.",
+      "why_it_works": "Relevance + timeliness; borrows attention everyone is already giving.",
+      "best_for_business": [
+        "local_service",
+        "ecommerce_dtc",
+        "restaurant",
+        "creator_personal_brand",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Same-day reactive Reels; comment-section marketing; a standing fast-response pod.",
+      "small_biz_example": "Local pizza place jumping on a peaking meme tied to their product.",
+      "examples": [
+        "oreo_dunk",
+        "aviation_gin_peloton",
+        "wendys_twitter"
+      ],
+      "embedding_text": "cultural moment hijack newsjacking real time reactive meme trending oreo dunk aviation gin fast witty"
+    },
+    {
+      "id": "distinctive_asset_proof",
+      "name": "Distinctive-asset proof",
+      "definition": "Let people demonstrate how ownable your brand assets are.",
+      "why_it_works": "Recognition + in-group pride; ownership proven by the crowd, not claims.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "'Draw/guess our brand' prompts; AI 'prove it' experiments.",
+      "small_biz_example": "Cafe with a signature latte-art design runs 'draw our latte from memory'.",
+      "examples": [
+        "heinz_draw_ketchup",
+        "coca_cola_recycle_me",
+        "absolut_bottles"
+      ],
+      "embedding_text": "distinctive asset proof customers demonstrate iconic recognizable draw ketchup heinz ownership salience"
+    },
+    {
+      "id": "experience_as_pr",
+      "name": "Money-can't-buy experience as PR",
+      "definition": "Create an experience so remarkable it earns coverage.",
+      "why_it_works": "Awe + scarcity; the experience becomes a story people tell.",
+      "best_for_business": [
+        "local_service",
+        "restaurant",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "lead_generation",
+        "foot_traffic"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Pop-ups designed for vertical capture; require follow/email to enter.",
+      "small_biz_example": "Restaurant raffles a 'cook with the chef' night; gym offers 'train with the owner'.",
+      "examples": [
+        "airbnb_night_at",
+        "red_bull_stratos",
+        "lvmh_olympics"
+      ],
+      "embedding_text": "money can't buy experience contest dream prize earned media airbnb night at red bull stratos PR"
+    },
+    {
+      "id": "useful_utility",
+      "name": "Useful-utility-as-marketing",
+      "definition": "Build a genuinely useful tool/product/offer that markets you.",
+      "why_it_works": "Reciprocity + utility; the ad IS the value.",
+      "best_for_business": [
+        "startup_saas",
+        "b2b",
+        "local_service",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "lead_generation",
+        "trust_credibility",
+        "awareness"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Free interactive tool/quiz/calculator; gated with email for leads.",
+      "small_biz_example": "Dentist offers a free '2-minute smile self-check' quiz; accountant a tax-deadline calculator.",
+      "examples": [
+        "warby_home_try_on",
+        "pedigree_adoptable",
+        "axa_three_words"
+      ],
+      "embedding_text": "useful utility as marketing free tool calculator quiz value first lead generation warby try on"
+    },
+    {
+      "id": "underserved_inclusivity",
+      "name": "Underserved-audience inclusivity",
+      "definition": "Serve an ignored audience as the core idea (product + message).",
+      "why_it_works": "Belonging + recognition; the underserved become evangelists.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "loyalty_retention",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Center the audience and let them tell their own stories (UGC).",
+      "small_biz_example": "A gym built for beginners intimidated by gyms; a salon for a hair type others turn away.",
+      "examples": [
+        "fenty_beauty",
+        "vaseline_transition",
+        "orange_womens_football"
+      ],
+      "embedding_text": "underserved audience inclusivity ignored group differentiation fenty 40 shades vaseline transition evangelists"
+    },
+    {
+      "id": "reveal_the_gap",
+      "name": "Reveal-the-gap social experiment",
+      "definition": "Stage a real experiment exposing a perception gap.",
+      "why_it_works": "Self-insight + emotional surprise; proof beats claims.",
+      "best_for_business": [
+        "local_service",
+        "startup_saas",
+        "ecommerce_dtc",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Documentary-style short film; testimonial reveal.",
+      "small_biz_example": "Dentist reveals 'most people avoid us out of embarrassment, not pain' via real interviews.",
+      "examples": [
+        "dove_real_beauty_sketches",
+        "always_like_a_girl"
+      ],
+      "embedding_text": "reveal the gap social experiment perception dove sketches like a girl surprise emotional proof insight"
+    },
+    {
+      "id": "talk_to_the_buyer",
+      "name": "Talk to the buyer, not the user",
+      "definition": "Address the actual purchaser rather than the end-user.",
+      "why_it_works": "Relevance to the person holding the wallet, often ignored.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "lead_generation",
+        "product_launch",
+        "awareness"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Segmented creator content to the buyer (gift-giver, parent, office manager).",
+      "small_biz_example": "A kids' activity center markets to grandparents ('the gift of a quiet Sunday').",
+      "examples": [
+        "old_spice"
+      ],
+      "embedding_text": "talk to the buyer not user decision maker purchaser gift giver old spice"
+    },
+    {
+      "id": "unhinged_mascot_lore",
+      "name": "Character-driven 'unhinged' brand voice + serialized lore",
+      "definition": "A persistent, slightly chaotic character with ongoing storylines.",
+      "why_it_works": "Parasocial attachment + narrative; the comment section becomes the brief.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "local_service",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention",
+        "virality"
+      ],
+      "budget_level": [
+        "low"
+      ],
+      "format_2026": "Mascot TikTok; comment-section performance; serialized bits.",
+      "small_biz_example": "Cafe with a grumpy-cat 'manager' persona; plumber with a superhero alter-ego.",
+      "examples": [
+        "duolingo",
+        "ryanair_tiktok"
+      ],
+      "embedding_text": "unhinged mascot character brand voice serialized lore duolingo owl ryanair personality parasocial"
+    },
+    {
+      "id": "values_stand",
+      "name": "Take a values stand aligned to core-audience identity",
+      "definition": "Advocate a position your core audience holds, accepting backlash from others.",
+      "why_it_works": "Identity signaling + tribalism; polarization deepens loyalty — IF authentic.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "loyalty_retention",
+        "trust_credibility",
+        "awareness"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Founder POV content + proof of action.",
+      "small_biz_example": "A gym donating a % of memberships to a cause and showing receipts.",
+      "examples": [
+        "nike_dream_crazy",
+        "patagonia_dont_buy"
+      ],
+      "risk_note": "Only recommend with a genuine, provable commitment. Hollow purpose backfires.",
+      "embedding_text": "values stand controversy tribe loyalty authentic commitment nike kaepernick patagonia purpose"
+    },
+    {
+      "id": "reverse_psychology",
+      "name": "Reverse psychology / anti-consumption signal",
+      "definition": "Tell people not to buy, or undercut your own sell.",
+      "why_it_works": "Reactance + integrity signal.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low"
+      ],
+      "format_2026": "Candid founder posts.",
+      "small_biz_example": "A cafe telling you which of its drinks you probably shouldn't order.",
+      "examples": [
+        "patagonia_dont_buy",
+        "cards_against_humanity"
+      ],
+      "risk_note": "Patagonia's famous '+30% sales' is unverified — use the mechanism, not the number.",
+      "embedding_text": "reverse psychology anti consumption don't buy this jacket integrity reactance patagonia"
+    },
+    {
+      "id": "honest_humor_crisis",
+      "name": "Radical honesty + humor in a crisis",
+      "definition": "Own a mistake fast, with wit (humility, humour, honesty).",
+      "why_it_works": "Honesty heuristic; disarms anger.",
+      "best_for_business": [
+        "local_service",
+        "restaurant",
+        "ecommerce_dtc",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "awareness"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Founder video apology + meme.",
+      "small_biz_example": "A bakery that sold out posting a funny 'we underestimated you' apology.",
+      "examples": [
+        "kfc_fck",
+        "dominos_pizza_turnaround"
+      ],
+      "embedding_text": "radical honesty humor crisis apology own the mistake kfc fck humility disarm"
+    },
+    {
+      "id": "geo_rival_hijack",
+      "name": "Geo-located stunt turning a rival's asset into yours",
+      "definition": "Use competitors' footprint or attention against them.",
+      "why_it_works": "Play + gamification + cheeky trolling.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "restaurant",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "foot_traffic",
+        "product_launch",
+        "awareness"
+      ],
+      "budget_level": [
+        "medium"
+      ],
+      "format_2026": "Geofenced push + AR unlocks.",
+      "small_biz_example": "A new gym offering a deal you can only claim while standing near the big-box chain.",
+      "examples": [
+        "whopper_detour",
+        "burger_king_google_home"
+      ],
+      "embedding_text": "geo located stunt rival footprint whopper detour trolling gamified geofence foot traffic"
+    },
+    {
+      "id": "coin_a_catchphrase",
+      "name": "Coin a shareable catchphrase or gesture",
+      "definition": "Invent language/gesture people repeat.",
+      "why_it_works": "Social currency; free distribution.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Trending-sound-ready hooks.",
+      "small_biz_example": "A cafe's signature sign-off line customers start repeating.",
+      "examples": [
+        "budweiser_whassup",
+        "snickers_hungry"
+      ],
+      "embedding_text": "coin catchphrase gesture shareable social currency whassup snickers hungry repeatable hook"
+    },
+    {
+      "id": "own_a_calendar_moment",
+      "name": "Own a calendar moment",
+      "definition": "Claim a recurring date as yours.",
+      "why_it_works": "Anticipation + ritual.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "local_service",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "loyalty_retention",
+        "awareness"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Annual 'recap'/event formats.",
+      "small_biz_example": "A salon that owns 'first-day-of-summer' makeovers every year.",
+      "examples": [
+        "john_lewis_xmas",
+        "spotify_wrapped"
+      ],
+      "embedding_text": "own a calendar moment recurring date ritual anticipation john lewis christmas wrapped annual"
+    },
+    {
+      "id": "underdog_save_our_shop",
+      "name": "Underdog 'save our shop' appeal",
+      "definition": "Ask the community to rescue a struggling small business.",
+      "why_it_works": "Empathy + parasocial rescue; people rally for a face.",
+      "best_for_business": [
+        "local_service",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "foot_traffic",
+        "awareness"
+      ],
+      "budget_level": [
+        "zero"
+      ],
+      "format_2026": "Founder-face TikTok + creator/local-page tagging.",
+      "small_biz_example": "Owner's family posts 'we opened on our day off and no one came' with the storefront.",
+      "examples": [
+        "sushiya_tiktok",
+        "clawful_tiktok"
+      ],
+      "embedding_text": "underdog save our shop rescue parasocial small business tiktok sushiya clawful community foot traffic"
+    },
+    {
+      "id": "build_in_public",
+      "name": "Build-in-public",
+      "definition": "Share the messy process and behind-the-scenes.",
+      "why_it_works": "Transparency + audience investment in the journey.",
+      "best_for_business": [
+        "startup_saas",
+        "creator_personal_brand",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "loyalty_retention",
+        "awareness"
+      ],
+      "budget_level": [
+        "zero"
+      ],
+      "format_2026": "Daily process Reels; X threads; founder logs.",
+      "small_biz_example": "A maker showing every step of designing a new product before launch.",
+      "examples": [
+        "dollar_shave_club",
+        "popflex"
+      ],
+      "embedding_text": "build in public behind the scenes process transparency founder journey indie saas popflex"
+    },
+    {
+      "id": "edutainment",
+      "name": "Edutainment",
+      "definition": "Teach a dry or serious message through entertainment.",
+      "why_it_works": "Reduced resistance + memorability; humor bypasses PSA fatigue.",
+      "best_for_business": [
+        "local_service",
+        "b2b",
+        "startup_saas",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Animated shorts; explainer Reels.",
+      "small_biz_example": "A dentist's 'dumb ways to lose a tooth' cartoons; an insurer's absurd policy skits.",
+      "examples": [
+        "dumb_ways_to_die",
+        "steak_umm"
+      ],
+      "embedding_text": "edutainment teach serious boring message entertainment humor dumb ways to die memorable psa"
+    },
+    {
+      "id": "bait_and_switch_reveal",
+      "name": "Bait-and-switch reveal",
+      "definition": "Set an expectation, then flip it to make a point.",
+      "why_it_works": "Surprise + reframing.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Short-video reveal edits.",
+      "small_biz_example": "A tutoring service shows 'bad students' who turn out to just have bad materials.",
+      "examples": [
+        "orange_womens_football"
+      ],
+      "embedding_text": "bait and switch reveal expectation flip expose bias orange womens football surprise reframe"
+    },
+    {
+      "id": "personify_abstraction",
+      "name": "Personify a rivalry or abstraction",
+      "definition": "Turn a concept or competitor into a character.",
+      "why_it_works": "Narrative + clarity.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "awareness"
+      ],
+      "budget_level": [
+        "medium"
+      ],
+      "format_2026": "Character accounts; explainer shorts.",
+      "small_biz_example": "A meal-prep brand personifies '5pm hunger' as a recurring villain.",
+      "examples": [
+        "apple_get_a_mac",
+        "spotify_sounds_right"
+      ],
+      "embedding_text": "personify abstraction rivalry character get a mac sounds right nature narrative clarity"
+    },
+    {
+      "id": "incompleteness_participation",
+      "name": "Incompleteness that demands participation",
+      "definition": "Withhold info so people must engage to complete it.",
+      "why_it_works": "Curiosity gap; Zeigarnik effect; replays.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality",
+        "lead_generation"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "'Guess in comments' formats; blink-and-miss clips.",
+      "small_biz_example": "A cafe hides a free-drink code in a super-fast Reel you must pause.",
+      "examples": [
+        "budweiser_one_second_ads",
+        "samsung_flipvertising"
+      ],
+      "embedding_text": "incompleteness participation curiosity gap replay guess budweiser one second ads flipvertising puzzle"
+    },
+    {
+      "id": "symbolic_object_movement",
+      "name": "Symbolic physical object as a movement",
+      "definition": "One resonant object carrying outsized meaning.",
+      "why_it_works": "Symbolism + shareability; huge PR for low media cost.",
+      "best_for_business": [
+        "local_service",
+        "startup_saas",
+        "ecommerce_dtc",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "foot_traffic",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Installation designed for photos/vertical video.",
+      "small_biz_example": "An optometrist's giant blurry billboard readable only through free glasses handed out below.",
+      "examples": [
+        "fearless_girl",
+        "unicef_dirty_water"
+      ],
+      "risk_note": "Make sure the brand can live up to the symbol — Fearless Girl's sponsor later faced a pay-equity settlement.",
+      "embedding_text": "symbolic object movement statue placement fearless girl unicef dirty water PR low budget"
+    },
+    {
+      "id": "gamified_treasure_hunt",
+      "name": "Gamified treasure hunt",
+      "definition": "Hide value in a world people already inhabit.",
+      "why_it_works": "Play + reward-seeking.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality",
+        "foot_traffic"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "In-game / AR activations; 'search this phrase' hunts.",
+      "small_biz_example": "A shop hides discount codes around the neighborhood and drops clues on social.",
+      "examples": [
+        "mercado_livre_games",
+        "cadbury_worldwide_hide"
+      ],
+      "embedding_text": "gamified treasure hunt hide value in-game AR scavenger mercado livre cadbury worldwide hide play"
+    },
+    {
+      "id": "provoke_a_ban",
+      "name": "Provoke a ban to earn reach",
+      "definition": "Make work too provocative for paid channels so it spreads free.",
+      "why_it_works": "Forbidden-fruit + controversy amplification.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "'Banned ad' social framing.",
+      "small_biz_example": "A bold brand posts the ad a platform rejected, with the rejection as the story.",
+      "examples": [
+        "iceland_rangtan"
+      ],
+      "risk_note": "Must be truthful and defensible, not offensive for its own sake.",
+      "embedding_text": "provoke a ban banned ad controversy forbidden fruit reach iceland rangtan amplify"
+    },
+    {
+      "id": "self_deprecating_honesty",
+      "name": "Self-deprecating honesty",
+      "definition": "Openly own your flaws or limitations.",
+      "why_it_works": "Authenticity + relatability; owning criticism defuses it.",
+      "best_for_business": [
+        "startup_saas",
+        "ecommerce_dtc",
+        "local_service",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "trust_credibility",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Deadpan TikTok owning the obvious weakness.",
+      "small_biz_example": "A budget salon: 'we're not fancy, but you'll be out in 20 minutes and it'll be great.'",
+      "examples": [
+        "ryanair_tiktok",
+        "avis_try_harder",
+        "vw_think_small"
+      ],
+      "embedding_text": "self deprecating honesty own flaws relatable ryanair avis we try harder vw think small underdog"
+    },
+    {
+      "id": "combative_persona",
+      "name": "Combative brand persona",
+      "definition": "Pick playful fights with users or competitors.",
+      "why_it_works": "Spectacle + in-group entertainment.",
+      "best_for_business": [
+        "restaurant",
+        "ecommerce_dtc",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low"
+      ],
+      "format_2026": "Reactive replies; roast formats.",
+      "small_biz_example": "A pizza place playfully roasting a rival chain's frozen crust.",
+      "examples": [
+        "wendys_twitter"
+      ],
+      "risk_note": "Punch sideways/up, never at vulnerable customers.",
+      "embedding_text": "combative persona playful fights roast wendys spectacle rivalry entertainment"
+    },
+    {
+      "id": "staged_conspiracy_reveal",
+      "name": "Staged conspiracy/hoax with a reveal",
+      "definition": "Seed an ambiguous 'is it real?' narrative, then reveal.",
+      "why_it_works": "Mystery + detective participation; people share the puzzle.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "awareness",
+        "virality"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Influencer-seeded multi-week arcs (comply with disclosure rules).",
+      "small_biz_example": "A new restaurant drips cryptic clues about a 'mystery dish' for two weeks pre-open.",
+      "examples": [
+        "cerave_michael_cera",
+        "blair_witch_project"
+      ],
+      "embedding_text": "staged conspiracy hoax reveal mystery teaser decode cerave michael cera blair witch launch buzz"
+    },
+    {
+      "id": "loophole_stunt",
+      "name": "Loophole / technically-true stunt",
+      "definition": "Exploit a rule or definition cleverly.",
+      "why_it_works": "Cleverness + humor; cheap PR.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "virality"
+      ],
+      "budget_level": [
+        "low"
+      ],
+      "format_2026": "Screenshot-ready stunts.",
+      "small_biz_example": "A brand 'sponsors' a local team by finding a customer with a famous name.",
+      "examples": [
+        "surreal_cereal"
+      ],
+      "embedding_text": "loophole technically true stunt wordplay clever surreal cereal fake celebrity cheap PR"
+    },
+    {
+      "id": "flaw_into_story",
+      "name": "Turn a product flaw into the story",
+      "definition": "Reframe a weakness as a virtue.",
+      "why_it_works": "Reframing; makes a limitation memorable.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "local_service",
+        "b2b"
+      ],
+      "best_for_goals": [
+        "differentiation",
+        "awareness",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Narrative Reels around the 'flaw'.",
+      "small_biz_example": "A slow-brew coffee shop makes the wait the whole point ('worth it').",
+      "examples": [
+        "guinness_surfer",
+        "snickers_hungry"
+      ],
+      "embedding_text": "turn flaw into story weakness virtue reframe guinness surfer wait slow snickers narrative"
+    },
+    {
+      "id": "remove_purchase_risk",
+      "name": "Remove purchase risk as the marketing",
+      "definition": "Make risk-removal itself the message.",
+      "why_it_works": "Loss aversion; lowers the barrier to trial.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "lead_generation",
+        "product_launch",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "'Try before you buy' UGC.",
+      "small_biz_example": "A gym's 'first month free, cancel anytime, we'll help you cancel' promise.",
+      "examples": [
+        "warby_home_try_on"
+      ],
+      "embedding_text": "remove purchase risk try before you buy loss aversion warby home try on free trial trial"
+    },
+    {
+      "id": "product_truth_social_good",
+      "name": "Product-truth as social good",
+      "definition": "Redesign the offer itself to solve a real problem.",
+      "why_it_works": "Real utility + trust; not messaging, but substance.",
+      "best_for_business": [
+        "startup_saas",
+        "b2b",
+        "local_service",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "product_launch",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "medium"
+      ],
+      "format_2026": "Documented real impact stories.",
+      "small_biz_example": "A salon adds free quiet-hours appointments for neurodivergent clients.",
+      "examples": [
+        "axa_three_words",
+        "vaseline_transition"
+      ],
+      "embedding_text": "product truth as social good redesign offer real utility axa three words vaseline transition impact"
+    },
+    {
+      "id": "asset_saturation",
+      "name": "Ownable color/asset saturation",
+      "definition": "Flood every touchpoint with one distinctive asset.",
+      "why_it_works": "Mere exposure + recognition.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "product_launch"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Filter/AR + partnerships around one color/shape.",
+      "small_biz_example": "A bakery makes one signature color its entire packaging, signage, and content palette.",
+      "examples": [
+        "barbie_pink"
+      ],
+      "embedding_text": "ownable color asset saturation flood touchpoints barbie pink recognition mere exposure"
+    },
+    {
+      "id": "absurd_metaphor_taboo",
+      "name": "Absurd metaphor for a taboo",
+      "definition": "Use surreal imagery to make an awkward product talkable.",
+      "why_it_works": "Humor disarms embarrassment.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "product_launch",
+        "virality"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Creator skits with the metaphor.",
+      "small_biz_example": "A dental-hygiene brand uses an absurd mascot to make flossing funny.",
+      "examples": [
+        "squatty_potty",
+        "poo_pourri"
+      ],
+      "embedding_text": "absurd metaphor taboo surreal awkward product humor squatty potty poo pourri talkable"
+    },
+    {
+      "id": "unexpected_authority",
+      "name": "Unexpected-authority voice",
+      "definition": "Speak credibly on a topic no one expects from you.",
+      "why_it_works": "Novelty + surprise + goodwill.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "b2b",
+        "local_service"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "awareness"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Thoughtful long posts/threads; 'a pro reacts' explainers.",
+      "small_biz_example": "A dentist reacts to and rates viral DIY-whitening hacks.",
+      "examples": [
+        "steak_umm",
+        "vaseline_verified"
+      ],
+      "embedding_text": "unexpected authority voice credible surprise steak umm media literacy vaseline verified pro reacts"
+    },
+    {
+      "id": "collab_unexpected_brand",
+      "name": "Collaborate with an unexpected brand",
+      "definition": "Partner with a brand from a totally different world.",
+      "why_it_works": "Novelty + cross-audience reach + earned press.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "product_launch",
+        "virality"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Limited co-branded drop announced via short-form.",
+      "small_biz_example": "A local gym x a local donut shop 'cheat day' collab.",
+      "examples": [
+        "liquid_death_collabs"
+      ],
+      "embedding_text": "collaborate unexpected brand crossover partnership co-brand drop liquid death novelty cross audience"
+    },
+    {
+      "id": "limited_drop_scarcity",
+      "name": "Limited-drop scarcity",
+      "definition": "Release something in a deliberately scarce, time-boxed way.",
+      "why_it_works": "Scarcity + FOMO + urgency.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "virality",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "Countdown Reels; 'only if you show this' secret menu.",
+      "small_biz_example": "A cafe's '48-hours-only' seasonal drink announced with a countdown.",
+      "examples": [
+        "surreal_cereal",
+        "loewe_suna_fujita"
+      ],
+      "embedding_text": "limited drop scarcity FOMO urgency countdown secret menu time boxed exclusive drop"
+    },
+    {
+      "id": "sonic_earworm",
+      "name": "Sonic branding / earworm",
+      "definition": "Attach a catchy, ownable sound or song.",
+      "why_it_works": "Memory encoding via music; hums itself into recall.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "local_service",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "An original sound designed to trend on TikTok.",
+      "small_biz_example": "A local brand makes a 5-second jingle customers can't unhear.",
+      "examples": [
+        "dumb_ways_to_die",
+        "compare_the_meerkat"
+      ],
+      "embedding_text": "sonic branding earworm jingle catchy song memory dumb ways to die tiktok sound recall"
+    },
+    {
+      "id": "turn_negativity_into_content",
+      "name": "Turn negativity into content",
+      "definition": "Repurpose hate/criticism into entertainment.",
+      "why_it_works": "Disarms critics + signals confidence + relatable.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "restaurant",
+        "creator_personal_brand",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "'Reading our worst reviews' videos.",
+      "small_biz_example": "A restaurant dramatically reads its funniest 1-star reviews on camera.",
+      "examples": [
+        "liquid_death_greatest_hates"
+      ],
+      "embedding_text": "turn negativity into content read bad reviews hate liquid death greatest hates confidence relatable"
+    },
+    {
+      "id": "hero_demo_spectacle",
+      "name": "Hero product demo as cinematic spectacle",
+      "definition": "Prove one product truth with an unfakeable, awe-inducing live demonstration.",
+      "why_it_works": "Awe + costly-signal authenticity encode the message powerfully; you can't fake a real feat.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "b2b",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "trust_credibility",
+        "virality"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "One-take vertical demo Reels/TikToks; 'does it really work?' creator torture-tests.",
+      "small_biz_example": "A knife shop films one blade slicing through absurd objects in a single take.",
+      "examples": [
+        "volvo_epic_split",
+        "honda_cog",
+        "sony_bravia_balls",
+        "michelob_mcenroe"
+      ],
+      "embedding_text": "hero product demo cinematic spectacle unfakeable awe live demonstration volvo epic split honda cog proof"
+    },
+    {
+      "id": "branded_entertainment",
+      "name": "Branded entertainment (make ads people choose to watch)",
+      "definition": "Produce genuinely entertaining content that carries the product, instead of an ad people skip.",
+      "why_it_works": "Reactance avoidance + reciprocity; people opt in to something worth their time.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Episodic YouTube/TikTok series; mini-docs.",
+      "small_biz_example": "A local gym makes a genuinely funny web-series about gym life that just happens to feature it.",
+      "examples": [
+        "bmw_the_hire",
+        "apple_underdogs",
+        "chipotle_scarecrow"
+      ],
+      "embedding_text": "branded entertainment ads people choose to watch series film bmw the hire apple underdogs reactance"
+    },
+    {
+      "id": "aspirational_alter_ego",
+      "name": "Aspirational alter-ego character",
+      "definition": "A recurring character who embodies the customer's fantasy version of themselves.",
+      "why_it_works": "Aspirational identification + serialized familiarity.",
+      "best_for_business": [
+        "restaurant",
+        "ecommerce_dtc",
+        "creator_personal_brand"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "A signature persona carried across short-form.",
+      "small_biz_example": "A whiskey bar invents a suave 'regular' character who narrates its content.",
+      "examples": [
+        "dos_equis_interesting_man"
+      ],
+      "embedding_text": "aspirational alter ego character fantasy self dos equis most interesting man persona identification"
+    },
+    {
+      "id": "deprivation_framing",
+      "name": "Deprivation / absence framing",
+      "definition": "Show life WITHOUT the product to trigger loss aversion.",
+      "why_it_works": "Loss aversion outweighs gain framing; people fear missing out more than they crave gaining.",
+      "best_for_business": [
+        "local_service",
+        "restaurant",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "foot_traffic",
+        "product_launch"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "'POV: you ran out' TikToks; the disaster-without-us skit.",
+      "small_biz_example": "A coffee shop posts the tragic 'POV: the espresso machine is down' bit.",
+      "examples": [
+        "got_milk"
+      ],
+      "embedding_text": "deprivation absence framing life without the product loss aversion got milk ran out fomo"
+    },
+    {
+      "id": "playable_ad",
+      "name": "Playable ad / interactive branded game",
+      "definition": "Make the ad itself a game, quiz, or choose-your-own-adventure.",
+      "why_it_works": "Active participation + endowed-progress effect deepen engagement.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "virality",
+        "product_launch",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Instagram/TikTok interactive filters, quizzes, and mini-games.",
+      "small_biz_example": "A salon runs a 'find your color' interactive quiz that ends in a booking.",
+      "examples": [
+        "tinder_swipe_night",
+        "chipotle_scarecrow",
+        "rsf_uncensored_library"
+      ],
+      "embedding_text": "playable ad interactive branded game quiz choose your own adventure tinder swipe night participation"
+    },
+    {
+      "id": "live_data_ooh",
+      "name": "Live-data reactive OOH",
+      "definition": "Out-of-home or social content that responds to real-world data or events in real time.",
+      "why_it_works": "Novelty + relevance + wonder.",
+      "best_for_business": [
+        "local_service",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "foot_traffic"
+      ],
+      "budget_level": [
+        "medium",
+        "high"
+      ],
+      "format_2026": "Dynamic DOOH; localized 'live' social posts (the zero-budget local version is a chalkboard 'today's catch / weather special').",
+      "small_biz_example": "A cafe posts a daily 'it's raining, here's a warm-drink deal' reactive story.",
+      "examples": [
+        "british_airways_magic_of_flying",
+        "womens_aid_look_at_me"
+      ],
+      "embedding_text": "live data reactive out of home OOH real time british airways magic of flying lookup dynamic weather"
+    },
+    {
+      "id": "one_for_one_giving",
+      "name": "One-for-one / purchase-triggered giving",
+      "definition": "Every purchase triggers a donation or measurable real-world impact.",
+      "why_it_works": "Warm-glow giving + identity signaling; buyers feel good and tell others.",
+      "best_for_business": [
+        "ecommerce_dtc",
+        "local_service",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "trust_credibility",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "zero",
+        "low"
+      ],
+      "format_2026": "Live impact counters on-site and on receipts.",
+      "small_biz_example": "A bakery donates a loaf for every loaf sold and shows the running total.",
+      "examples": [
+        "bombas",
+        "tonys_chocolonely"
+      ],
+      "embedding_text": "one for one purchase triggered giving donation impact bombas warm glow buy one give one"
+    },
+    {
+      "id": "creator_audience_first",
+      "name": "Creator-audience-first product",
+      "definition": "Build an audience first, then launch a product into it at near-zero acquisition cost.",
+      "why_it_works": "Parasocial trust + attention ownership means you don't have to buy customers.",
+      "best_for_business": [
+        "creator_personal_brand",
+        "ecommerce_dtc"
+      ],
+      "best_for_goals": [
+        "product_launch",
+        "virality"
+      ],
+      "budget_level": [
+        "low"
+      ],
+      "format_2026": "Creator drops and TikTok Shop.",
+      "small_biz_example": "A local baker who built a big TikTok following launches a mix under her own name.",
+      "examples": [
+        "mrbeast_feastables"
+      ],
+      "embedding_text": "creator audience first product build audience then launch mrbeast feastables parasocial attention ownership"
+    },
+    {
+      "id": "fun_theory",
+      "name": "Gamify a mundane behavior (Fun Theory)",
+      "definition": "Make a desirable-but-boring action fun so people choose to do it.",
+      "why_it_works": "Intrinsic reward beats obligation or guilt at changing behavior.",
+      "best_for_business": [
+        "local_service",
+        "restaurant"
+      ],
+      "best_for_goals": [
+        "foot_traffic",
+        "loyalty_retention"
+      ],
+      "budget_level": [
+        "low",
+        "medium"
+      ],
+      "format_2026": "In-store gamified challenges and loyalty streaks.",
+      "small_biz_example": "A gym turns check-ins into a visible streak game with small rewards.",
+      "examples": [
+        "vw_piano_stairs"
+      ],
+      "embedding_text": "fun theory gamify mundane behavior make boring fun piano stairs volkswagen intrinsic reward"
+    },
+    {
+      "id": "emotional_storytelling",
+      "name": "Emotional storytelling (heartstring narrative)",
+      "definition": "Tell a moving human story that makes people feel something, with the brand as a light touch.",
+      "why_it_works": "Emotion drives memory and sharing far more than information does.",
+      "best_for_business": [
+        "local_service",
+        "ecommerce_dtc",
+        "restaurant",
+        "startup_saas"
+      ],
+      "best_for_goals": [
+        "awareness",
+        "loyalty_retention",
+        "trust_credibility"
+      ],
+      "budget_level": [
+        "low",
+        "high"
+      ],
+      "format_2026": "Short emotional mini-docs; real-customer story Reels.",
+      "small_biz_example": "A florist films the quiet story behind a regular's standing weekly order.",
+      "examples": [
+        "budweiser_puppy_love",
+        "john_lewis_xmas",
+        "cadbury_gorilla"
+      ],
+      "embedding_text": "emotional storytelling heartstring narrative feeling moving human story budweiser puppy love john lewis emotion memory"
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "dove_real_beauty",
+      "brand": "Dove (Unilever)",
+      "year": "2004-present",
+      "one_line": "Frame everyday 'real women' as the beauty ideal.",
+      "mechanism": "category_code_subversion",
+      "why": "Rejected airbrushed norms the audience resented.",
+      "results": "Won Cannes Lions 2025 Grand Prix (Glass + Creative Strategy) for the 20-year platform; launched off research that only 2% of women called themselves beautiful.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025; Unilever 'Real Truth About Beauty' report",
+      "agency": "Ogilvy"
+    },
+    {
+      "id": "dove_real_beauty_sketches",
+      "brand": "Dove",
+      "year": "2013",
+      "one_line": "Forensic artist draws women per their own vs. strangers' descriptions.",
+      "mechanism": "reveal_the_gap",
+      "why": "Emotional proof beats claims.",
+      "results": "163M global views; briefly the most-watched online ad ever; Titanium Grand Prix Cannes 2013.",
+      "results_confidence": "high",
+      "source": "Think with Google; Adweek",
+      "agency": "Ogilvy Brazil"
+    },
+    {
+      "id": "old_spice",
+      "brand": "Old Spice",
+      "year": "2010",
+      "one_line": "Absurdist one-take monologue addressed to women, then real-time video replies.",
+      "mechanism": "talk_to_the_buyer",
+      "why": "Most body wash is bought by women; humor + live performance.",
+      "results": "Sales up more than 50% by mid-2010 (later doubled); Ad Age top campaign of the century.",
+      "results_confidence": "high",
+      "source": "Wieden+Kennedy; Ad Age",
+      "agency": "Wieden+Kennedy"
+    },
+    {
+      "id": "nike_just_do_it",
+      "brand": "Nike",
+      "year": "1988-present",
+      "one_line": "Universal athlete-grit slogan.",
+      "mechanism": "coin_a_catchphrase",
+      "why": "Everyone is an 'athlete'; ownable human truth.",
+      "results": "Foundational brand equity; one of the most recognized slogans ever.",
+      "results_confidence": "high",
+      "source": "Widely documented",
+      "agency": "Wieden+Kennedy"
+    },
+    {
+      "id": "apple_1984",
+      "brand": "Apple",
+      "year": "1984",
+      "one_line": "Super Bowl film casting Mac as liberation from conformity.",
+      "mechanism": "category_code_subversion",
+      "why": "Positioned the leader (IBM) as Big Brother.",
+      "results": "Legendary; effectively aired once nationally.",
+      "results_confidence": "high",
+      "source": "Widely documented",
+      "agency": "Chiat/Day"
+    },
+    {
+      "id": "apple_get_a_mac",
+      "brand": "Apple",
+      "year": "2006-2009",
+      "one_line": "'I'm a Mac / I'm a PC' personified comparison.",
+      "mechanism": "personify_abstraction",
+      "why": "Made specs human and funny.",
+      "results": "Credited with major Mac share gains over the run.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "TBWA\\Media Arts Lab"
+    },
+    {
+      "id": "apple_shot_on_iphone",
+      "brand": "Apple",
+      "year": "2015-present",
+      "one_line": "User photos as the whole campaign.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Product demo via real customers; democratized creativity.",
+      "results": "Cannes Lions 2025 Outdoor Grand Prix; one of Apple's longest-running platforms.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025",
+      "agency": "TBWA\\Media Arts Lab"
+    },
+    {
+      "id": "vw_think_small",
+      "brand": "Volkswagen",
+      "year": "1959-1960",
+      "one_line": "Self-deprecating minimalist print for the Beetle ('Think Small', 'Lemon').",
+      "mechanism": "self_deprecating_honesty",
+      "why": "Disarming candor in a chrome-obsessed era.",
+      "results": "Named among the greatest campaigns of the 20th century.",
+      "results_confidence": "high",
+      "source": "Ad Age Advertising Century",
+      "agency": "DDB"
+    },
+    {
+      "id": "avis_try_harder",
+      "brand": "Avis",
+      "year": "1962",
+      "one_line": "Embrace being #2: 'We Try Harder.'",
+      "mechanism": "self_deprecating_honesty",
+      "why": "Turned a weakness into a service promise.",
+      "results": "Grew share against Hertz; ran for decades.",
+      "results_confidence": "medium",
+      "source": "Trade press / case studies",
+      "agency": "DDB"
+    },
+    {
+      "id": "de_beers_diamond_forever",
+      "brand": "De Beers",
+      "year": "1948",
+      "one_line": "'A Diamond Is Forever' links diamonds to eternal love.",
+      "mechanism": "own_a_calendar_moment",
+      "why": "Manufactured the engagement-ring default (a ritual/norm).",
+      "results": "Reshaped an entire category for generations.",
+      "results_confidence": "high",
+      "source": "Widely documented",
+      "agency": "N.W. Ayer"
+    },
+    {
+      "id": "guinness_surfer",
+      "brand": "Guinness",
+      "year": "1999",
+      "one_line": "'Good things come to those who wait' epic.",
+      "mechanism": "flaw_into_story",
+      "why": "Reframed the slow pour as reward.",
+      "results": "Voted among the UK's best ads of all time.",
+      "results_confidence": "medium",
+      "source": "Industry polls",
+      "agency": "AMV BBDO"
+    },
+    {
+      "id": "cadbury_gorilla",
+      "brand": "Cadbury",
+      "year": "2007",
+      "one_line": "A gorilla drums to Phil Collins; product only at the end.",
+      "mechanism": "category_code_subversion",
+      "why": "Emotion/joy over product info, after a recall.",
+      "results": "Sales and favorability lift; Cannes-awarded.",
+      "results_confidence": "medium",
+      "source": "YouGov; Fallon",
+      "agency": "Fallon"
+    },
+    {
+      "id": "budweiser_whassup",
+      "brand": "Budweiser",
+      "year": "1999",
+      "one_line": "Friends yell 'Whassup?' on the phone.",
+      "mechanism": "coin_a_catchphrase",
+      "why": "Ready-made social currency.",
+      "results": "Cannes Grand Prix; saturated pop culture.",
+      "results_confidence": "high",
+      "source": "Cannes; DDB",
+      "agency": "DDB"
+    },
+    {
+      "id": "snickers_hungry",
+      "brand": "Snickers",
+      "year": "2010-present",
+      "one_line": "Hunger turns you into a diva/celebrity ('You're Not You When You're Hungry').",
+      "mechanism": "flaw_into_story",
+      "why": "Dramatizes a universal need-state; endlessly extendable.",
+      "results": "Global sales growth; Effie and Cannes wins.",
+      "results_confidence": "high",
+      "source": "Effie; BBDO",
+      "agency": "BBDO"
+    },
+    {
+      "id": "dumb_ways_to_die",
+      "brand": "Metro Trains Melbourne",
+      "year": "2012",
+      "one_line": "Cute characters die absurdly; be safe near trains.",
+      "mechanism": "edutainment",
+      "why": "Humor bypasses PSA fatigue; an earworm song.",
+      "results": "Most-awarded Cannes campaign at the time (28 Lions, 5 Grand Prix). The widely-cited ~20% accident reduction is CONTESTED (Effie juries and Mumbrella questioned causality).",
+      "results_confidence": "low (awards high; safety impact contested)",
+      "source": "Cannes; Mumbrella; Smith Brothers Media case study",
+      "agency": "McCann Melbourne"
+    },
+    {
+      "id": "john_lewis_xmas",
+      "brand": "John Lewis",
+      "year": "2007-present",
+      "one_line": "Annual emotional Christmas storytelling film.",
+      "mechanism": "own_a_calendar_moment",
+      "why": "Anticipation becomes a national ritual.",
+      "results": "Strong seasonal sales correlation over many years.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "adam&eveDDB"
+    },
+    {
+      "id": "compare_the_meerkat",
+      "brand": "Compare the Market",
+      "year": "2009",
+      "one_line": "'Compare the Meerkat' mascot pun.",
+      "mechanism": "sonic_earworm",
+      "why": "Distinctive mascot + wordplay cut through a boring category.",
+      "results": "Major share and consideration gains.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "VCCP"
+    },
+    {
+      "id": "dollar_shave_club",
+      "brand": "Dollar Shave Club",
+      "year": "2012",
+      "one_line": "Deadpan founder walk-and-talk mocking overpriced razors.",
+      "mechanism": "founder_comedy",
+      "why": "Cheap, funny, precise pain point.",
+      "results": "Made for about $4,500 (director estimated a polished version would cost ~$50,000); 12,000 orders in 48 hours; more than 27M views; $1B Unilever acquisition (2016).",
+      "results_confidence": "high",
+      "source": "NBC/Entrepreneur; Bret Waters case study; OptiMonk",
+      "agency": "In-house (Michael Dubin)"
+    },
+    {
+      "id": "liquid_death",
+      "brand": "Liquid Death",
+      "year": "2019-present",
+      "one_line": "Canned water branded like heavy-metal beer.",
+      "mechanism": "category_code_subversion",
+      "why": "Sells identity/rebellion, not 'purity'; entertainment-first.",
+      "results": "More than $330M revenue in 2024; ~$1.4B valuation; the most-followed water brand on TikTok.",
+      "results_confidence": "high",
+      "source": "Sacra; Bigblue; Forbes",
+      "agency": "In-house"
+    },
+    {
+      "id": "oatly",
+      "brand": "Oatly",
+      "year": "2010s",
+      "one_line": "Cheeky, verbose 'wtf'-style packaging and ads.",
+      "mechanism": "category_code_subversion",
+      "why": "Polarizing = memorable.",
+      "results": "Category growth and a cult following.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "fenty_beauty",
+      "brand": "Fenty Beauty (Rihanna)",
+      "year": "2017",
+      "one_line": "Launch with 40 foundation shades, deep shades front-and-center.",
+      "mechanism": "underserved_inclusivity",
+      "why": "Served consumers the category ignored.",
+      "results": "Reported roughly $100M in sales in the first ~40 days.",
+      "results_confidence": "medium",
+      "source": "Trade press; Kendo/LVMH",
+      "agency": "In-house / Kendo"
+    },
+    {
+      "id": "warby_home_try_on",
+      "brand": "Warby Parker",
+      "year": "2010",
+      "one_line": "Ship 5 frames free to try at home.",
+      "mechanism": "remove_purchase_risk",
+      "why": "Friction removal drives trial + UGC.",
+      "results": "Fueled early DTC growth.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "squatty_potty",
+      "brand": "Squatty Potty",
+      "year": "2015",
+      "one_line": "A prince pooping rainbow ice cream explains the product.",
+      "mechanism": "absurd_metaphor_taboo",
+      "why": "Humor makes an awkward product shareable.",
+      "results": "Reported large sales lift; more than 100M views across platforms.",
+      "results_confidence": "medium",
+      "source": "Harmon Brothers case study; trade press",
+      "agency": "Harmon Brothers"
+    },
+    {
+      "id": "surreal_cereal",
+      "brand": "Surreal",
+      "year": "2020s",
+      "one_line": "Billboards using ordinary people named 'Ronaldo', 'Serena', etc. as 'endorsers'.",
+      "mechanism": "loophole_stunt",
+      "why": "Cheap, clever, PR-friendly technically-true wordplay.",
+      "results": "Repeated viral earned media on a small budget.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "cerave_michael_cera",
+      "brand": "CeraVe",
+      "year": "2024",
+      "one_line": "Fake conspiracy that Michael Cera invented CeraVe, revealed at the Super Bowl.",
+      "mechanism": "staged_conspiracy_reveal",
+      "why": "Leaned into a pre-existing name coincidence; earned-first.",
+      "results": "Billions of earned impressions pre-reveal (brand cites 15.4B total; Ad Age/Ogilvy cite ~6-9B pre-game); purchase consideration rose from about 21% to about 28% (YouGov BrandIndex); brand-reported sales up ~25%; 2024 Cannes Social & Influencer Grand Prix + 2025 Clio Grand.",
+      "results_confidence": "medium (impressions high per brand; sales medium)",
+      "source": "Cannes 2024; Clio; YouGov BrandIndex; Ad Age",
+      "agency": "Ogilvy PR"
+    },
+    {
+      "id": "axa_three_words",
+      "brand": "AXA",
+      "year": "2024-2025",
+      "one_line": "Add 'and domestic violence' coverage to home insurance policies.",
+      "mechanism": "product_truth_social_good",
+      "why": "Real utility redesigning the offer, not messaging.",
+      "results": "Three Cannes 2025 Grand Prix, including Titanium.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025",
+      "agency": "Publicis Conseil"
+    },
+    {
+      "id": "orange_womens_football",
+      "brand": "Orange",
+      "year": "2024",
+      "one_line": "Deepfake men onto women's football highlights, then reveal.",
+      "mechanism": "bait_and_switch_reveal",
+      "why": "Confronts bias viscerally.",
+      "results": "Two Cannes 2024 Grand Prix (Film + Sport), 10 Lions; Kantar top-1% of ads.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024; Kantar",
+      "agency": "Marcel Paris"
+    },
+    {
+      "id": "heinz_draw_ketchup",
+      "brand": "Heinz",
+      "year": "2021-2024",
+      "one_line": "Ask people worldwide to 'draw ketchup'; nearly all draw Heinz.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Ownership proven by the crowd.",
+      "results": "97% drew Heinz iconography; the platform reports billions of impressions and double-digit sales growth; Cannes 2023 Creative Effectiveness Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2023; Kantar; Selfstorming case study",
+      "agency": "Rethink Toronto / Wieden+Kennedy NY"
+    },
+    {
+      "id": "coca_cola_recycle_me",
+      "brand": "Coca-Cola",
+      "year": "2024",
+      "one_line": "Crushed/mangled-logo print urging recycling.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Logo recognizable even when mangled.",
+      "results": "Cannes 2024 Print & Publishing Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "Ogilvy New York"
+    },
+    {
+      "id": "pedigree_adoptable",
+      "brand": "Pedigree",
+      "year": "2024",
+      "one_line": "Generative AI turns shelter-dog photos into polished ad imagery.",
+      "mechanism": "useful_utility",
+      "why": "Media efficiency + purpose (helps real adoptions).",
+      "results": "Cannes 2024 Outdoor Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "Colenso BBDO"
+    },
+    {
+      "id": "spotify_sounds_right",
+      "brand": "Spotify",
+      "year": "2025",
+      "one_line": "'NATURE' added as an official artist; streams fund conservation.",
+      "mechanism": "personify_abstraction",
+      "why": "Listening becomes climate action; an abstraction becomes a participant.",
+      "results": "Cannes 2025 Innovation Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025",
+      "agency": "AKQA"
+    },
+    {
+      "id": "budweiser_one_second_ads",
+      "brand": "Budweiser",
+      "year": "2025",
+      "one_line": "Play one second of iconic songs; dare fans to name them.",
+      "mechanism": "incompleteness_participation",
+      "why": "Curiosity gap + replays; built on Gen Z skipping ads fast.",
+      "results": "Cannes 2025 Grand Prix (Brand Experience & Activation / Design / Digital Craft).",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025; Creative Review",
+      "agency": "Africa Creative DDB"
+    },
+    {
+      "id": "vaseline_transition",
+      "brand": "Vaseline",
+      "year": "2024",
+      "one_line": "First clinically-proven lotion for trans women in gender-affirming therapy.",
+      "mechanism": "product_truth_social_good",
+      "why": "Real need, real product.",
+      "results": "Cannes 2024 Glass Grand Prix (Singapore's first).",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "Ogilvy Singapore"
+    },
+    {
+      "id": "vaseline_verified",
+      "brand": "Vaseline",
+      "year": "2023",
+      "one_line": "Scientists lab-test viral TikTok skincare hacks.",
+      "mechanism": "unexpected_authority",
+      "why": "Enters a live cultural conversation with credibility.",
+      "results": "Cannes Health & Wellness Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions",
+      "agency": "Ogilvy Singapore"
+    },
+    {
+      "id": "specsavers_misheard",
+      "brand": "Specsavers",
+      "year": "2024",
+      "one_line": "Rick Astley re-records his hit with wrong lyrics to push hearing tests.",
+      "mechanism": "reveal_the_gap",
+      "why": "The ad IS the demo of the problem.",
+      "results": "Cannes 2024 Audio & Radio Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "Golin London"
+    },
+    {
+      "id": "xbox_everyday_tactician",
+      "brand": "Xbox",
+      "year": "2024",
+      "one_line": "A real football-club job you apply for via Football Manager.",
+      "mechanism": "gamified_treasure_hunt",
+      "why": "Turns play into real stakes.",
+      "results": "Two Cannes 2024 Grand Prix (Gaming + Direct).",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "McCann London"
+    },
+    {
+      "id": "mercado_livre_games",
+      "brand": "Mercado Livre",
+      "year": "2024-2025",
+      "one_line": "Hide products/discounts inside video games ('Call of Discounts', 'Handshake Hunt').",
+      "mechanism": "gamified_treasure_hunt",
+      "why": "Play drives commerce.",
+      "results": "Cannes Gaming Grand Prix in both 2024 and 2025.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024 & 2025",
+      "agency": "GUT São Paulo"
+    },
+    {
+      "id": "oreo_dunk",
+      "brand": "Oreo",
+      "year": "2013",
+      "one_line": "Tweet during the Super Bowl blackout: 'You can still dunk in the dark.'",
+      "mechanism": "cultural_moment_hijack",
+      "why": "Speed + relevance during a live moment.",
+      "results": "Massive earned media on essentially zero media spend.",
+      "results_confidence": "high",
+      "source": "Adweek; Ad Age",
+      "agency": "360i"
+    },
+    {
+      "id": "duolingo",
+      "brand": "Duolingo",
+      "year": "2021-2025",
+      "one_line": "Unhinged owl mascot; 'Death of Duo' storyline.",
+      "mechanism": "unhinged_mascot_lore",
+      "why": "Comment section as brief; serialized lore drives participation.",
+      "results": "'Death of Duo' drove more than a billion impressions and about double the top Super Bowl brand's social buzz; a Dua Lipa reshare drove hundreds of thousands of actions; boosts DAU and downloads.",
+      "results_confidence": "high",
+      "source": "Tribu case study; trade press",
+      "agency": "In-house (Zaria Parvez)"
+    },
+    {
+      "id": "wendys_twitter",
+      "brand": "Wendy's",
+      "year": "2017-present",
+      "one_line": "Savage, fast replies roasting users and competitors.",
+      "mechanism": "combative_persona",
+      "why": "Screenshot-worthy conflict as entertainment.",
+      "results": "Large follower and engagement growth; widely imitated.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house / VML"
+    },
+    {
+      "id": "aviation_gin_peloton",
+      "brand": "Aviation Gin",
+      "year": "2019",
+      "one_line": "Fast-follow parody casting the viral 'Peloton wife' in a gin ad.",
+      "mechanism": "cultural_moment_hijack",
+      "why": "Days-fast newsjack of a trending controversy.",
+      "results": "Huge earned media within days.",
+      "results_confidence": "high",
+      "source": "Widely reported",
+      "agency": "Maximum Effort (Ryan Reynolds)"
+    },
+    {
+      "id": "ryanair_tiktok",
+      "brand": "Ryanair",
+      "year": "2020s",
+      "one_line": "Self-aware 'we're cheap and rude' mascot content.",
+      "mechanism": "self_deprecating_honesty",
+      "why": "Owning the criticism defuses it.",
+      "results": "Millions of followers; high engagement.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "steak_umm",
+      "brand": "Steak-umm",
+      "year": "2020",
+      "one_line": "Earnest media-literacy threads from a frozen-meat brand.",
+      "mechanism": "unexpected_authority",
+      "why": "Novelty + sincerity from an unexpected source.",
+      "results": "Viral goodwill and press.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "nike_dream_crazy",
+      "brand": "Nike",
+      "year": "2018",
+      "one_line": "'Believe in something' narrated by Colin Kaepernick.",
+      "mechanism": "values_stand",
+      "why": "Aligned with core-audience identity, accepting backlash.",
+      "results": "Online sales rose about 31% in the 72 hours after launch (Edison Trends); stock dipped ~3% then recovered to a record; record FY19 revenue of $39.1B.",
+      "results_confidence": "high",
+      "source": "Edison Trends; Nike financials",
+      "agency": "Wieden+Kennedy"
+    },
+    {
+      "id": "always_like_a_girl",
+      "brand": "Always (P&G)",
+      "year": "2014",
+      "one_line": "Reclaim 'like a girl' as empowering via a filmed experiment.",
+      "mechanism": "reveal_the_gap",
+      "why": "Shifts perception live and emotionally.",
+      "results": "Billions of impressions; positive association among 16-24-year-old women rose from about 19% to about 76% (P&G/Millward Brown); Emmy + inaugural Cannes Glass Lion + Grand Effie.",
+      "results_confidence": "high",
+      "source": "Cannes; Institute for Public Relations; P&G/Millward Brown",
+      "agency": "Leo Burnett"
+    },
+    {
+      "id": "als_ice_bucket",
+      "brand": "ALS Association",
+      "year": "2014",
+      "one_line": "Dump ice water, nominate three, donate.",
+      "mechanism": "challenge_nomination_loop",
+      "why": "Social proof + a 24-hour deadline + ego.",
+      "results": "Raised $115M for the ALS Association versus $2.8M in the same period the prior year (about a 40x jump); more than 17M participants; funded the NEK1 gene discovery and AMX0035 (later FDA-approved).",
+      "results_confidence": "high",
+      "source": "ALS Association; Nature; Nature Genetics 2016",
+      "agency": "Grassroots (Frates/Quinn/Senerchia)"
+    },
+    {
+      "id": "patagonia_dont_buy",
+      "brand": "Patagonia",
+      "year": "2011",
+      "one_line": "Black Friday NYT ad: 'Don't Buy This Jacket.'",
+      "mechanism": "reverse_psychology",
+      "why": "Anti-consumption authentically proved values and deepened loyalty.",
+      "results": "The widely-cited ~30% sales increase over the following nine months is CONTESTED — repeated by outlets like IMD but with no Patagonia primary source, and the causal claim is oversimplified.",
+      "results_confidence": "low (ad details high; +30% low)",
+      "source": "IMD case study (secondary); Venables Bell",
+      "agency": "Venables Bell & Partners"
+    },
+    {
+      "id": "state_street_fearless_girl",
+      "brand": "State Street Global Advisors",
+      "year": "2017",
+      "one_line": "A defiant girl statue faces the Wall Street bull; promotes the SHE ETF.",
+      "mechanism": "symbolic_object_movement",
+      "why": "One object, global meaning.",
+      "results": "Four Cannes Grand Prix and 18 Lions; billions of social impressions. NOTE: State Street settled a roughly $5M gender/race pay case months later — a well-documented irony.",
+      "results_confidence": "medium (awards high; the pay-settlement irony is well-documented)",
+      "source": "Adweek; Boston Globe",
+      "agency": "McCann New York"
+    },
+    {
+      "id": "kfc_fck",
+      "brand": "KFC UK",
+      "year": "2018",
+      "one_line": "A rearranged-logo print apology ('FCK') for a chicken shortage.",
+      "mechanism": "honest_humor_crisis",
+      "why": "Owns the mistake and disarms anger (humility, humour, honesty).",
+      "results": "Reached an audience in the hundreds of millions to about a billion; YouGov positive attention rose from about 7% to about 29%; Cannes Lions.",
+      "results_confidence": "high",
+      "source": "Cannes; YouGov",
+      "agency": "Mother London"
+    },
+    {
+      "id": "iceland_rangtan",
+      "brand": "Iceland Foods",
+      "year": "2018",
+      "one_line": "Anti-palm-oil animation banned from TV.",
+      "mechanism": "provoke_a_ban",
+      "why": "Censorship amplifies reach.",
+      "results": "Tens of millions of views and huge earned media after the 'ban'.",
+      "results_confidence": "medium",
+      "source": "Trade press (Greenpeace-originated film)",
+      "agency": "Greenpeace / Iceland"
+    },
+    {
+      "id": "dominos_pizza_turnaround",
+      "brand": "Domino's",
+      "year": "2009-2010",
+      "one_line": "Publicly admitted the pizza was bad and showed the reformulation.",
+      "mechanism": "costly_signal_truth",
+      "why": "Radical self-criticism made the improvement believable.",
+      "results": "Same-store sales jumped 14.3% the following quarter; a multi-year stock surge followed.",
+      "results_confidence": "high",
+      "source": "Company financials; trade press",
+      "agency": "CP+B"
+    },
+    {
+      "id": "share_a_coke",
+      "brand": "Coca-Cola",
+      "year": "2011-present",
+      "one_line": "Replace the logo with common first names.",
+      "mechanism": "data_as_story",
+      "why": "Finding a name is a social gesture, not a purchase.",
+      "results": "In Australia, young-adult consumption rose about 7% and share rose about 4%; in the US it helped reverse a multi-year decline (about +2%); more than 150M personalized bottles; 7 Cannes wins.",
+      "results_confidence": "high (Australia); medium (US)",
+      "source": "Wikipedia (Ogilvy figures); WSJ/Nielsen; StoryBox",
+      "agency": "Ogilvy Sydney"
+    },
+    {
+      "id": "spotify_wrapped",
+      "brand": "Spotify",
+      "year": "2016-present",
+      "one_line": "Personalized annual listening recap in shareable story cards.",
+      "mechanism": "data_as_story",
+      "why": "Ego + FOMO + social proof; identity currency.",
+      "results": "In 2025, more than 200M users engaged within 24 hours (up about 19% year over year) and hundreds of millions of shares; the 2020 launch drove roughly a 21% app-download spike.",
+      "results_confidence": "high",
+      "source": "Arthnova; NoGood; Spotify/press",
+      "agency": "In-house"
+    },
+    {
+      "id": "nutella_jars",
+      "brand": "Nutella",
+      "year": "2010s",
+      "one_line": "Names/personal labels on jars.",
+      "mechanism": "data_as_story",
+      "why": "Personalization-as-collectible drives gifting.",
+      "results": "Sell-outs in multiple markets.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "Ogilvy"
+    },
+    {
+      "id": "absolut_bottles",
+      "brand": "Absolut",
+      "year": "1980s-2000s",
+      "one_line": "Endless creative riffs on the bottle silhouette.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Consistency + variety on one ownable asset.",
+      "results": "One of the longest-running print campaigns ever.",
+      "results_confidence": "high",
+      "source": "Widely documented",
+      "agency": "TBWA"
+    },
+    {
+      "id": "barbie_pink",
+      "brand": "Barbie (Warner Bros.)",
+      "year": "2023",
+      "one_line": "Turn the world pink; 150+ partnerships; an AI selfie generator.",
+      "mechanism": "asset_saturation",
+      "why": "Everyone becomes a channel; pink as a participatory uniform.",
+      "results": "About $150M marketing spend; more than $1.4B box office; the selfie tool was used more than 13M times.",
+      "results_confidence": "high",
+      "source": "Variety; Avalanche Studios",
+      "agency": "Warner Bros. (Josh Goldstine)"
+    },
+    {
+      "id": "whopper_detour",
+      "brand": "Burger King",
+      "year": "2018",
+      "one_line": "A 1-cent Whopper unlockable only at a McDonald's location.",
+      "mechanism": "geo_rival_hijack",
+      "why": "Playful trolling + reward turns a rival's footprint into your asset.",
+      "results": "About 1.5M app downloads in 9 days; billions of impressions; Cannes Titanium/Direct/Mobile Grand Prix. ROI is SOURCE-DEPENDENT: Adweek cites 37:1 and 3.5B impressions 'according to the chain'; Burger King's own case study states 27:1 and 3.3B — use the range, not the top number.",
+      "results_confidence": "high (awards/downloads); medium (ROI figure varies)",
+      "source": "Adweek; The One Club (BK case study)",
+      "agency": "FCB New York"
+    },
+    {
+      "id": "moldy_whopper",
+      "brand": "Burger King",
+      "year": "2020",
+      "one_line": "Show a Whopper rotting to prove no artificial preservatives.",
+      "mechanism": "costly_signal_truth",
+      "why": "Disgust proves the claim; un-fakeable.",
+      "results": "Cannes-awarded; large polarizing buzz.",
+      "results_confidence": "medium",
+      "source": "Cannes; trade press",
+      "agency": "INGO / DAVID / Publicis"
+    },
+    {
+      "id": "sushiya_tiktok",
+      "brand": "Sushiya (Dallas)",
+      "year": "2020",
+      "one_line": "A grandson's TikTok asks people to save grandpa's struggling restaurant.",
+      "mechanism": "underdog_save_our_shop",
+      "why": "Community rallies for a face.",
+      "results": "Millions of views; crowds followed.",
+      "results_confidence": "medium",
+      "source": "Press-reported",
+      "agency": "Owner's family"
+    },
+    {
+      "id": "clawful_tiktok",
+      "brand": "Clawful (Lakewood, CO)",
+      "year": "2021",
+      "one_line": "A TikTok consultant engineers a 'save the restaurant' video.",
+      "mechanism": "underdog_save_our_shop",
+      "why": "Underdog appeal + creator/local-page tagging distributes it.",
+      "results": "Roughly 580,000 views versus a hoped-for 10,000; local news pickup. (Sales slowed after the spike — treat virality as a spike to convert.)",
+      "results_confidence": "medium",
+      "source": "Inc.",
+      "agency": "Bouta (Eli Stone)"
+    },
+    {
+      "id": "chipotle_guacdance",
+      "brand": "Chipotle",
+      "year": "2019",
+      "one_line": "A TikTok dance challenge for free guac on National Avocado Day.",
+      "mechanism": "challenge_nomination_loop",
+      "why": "Low-barrier participation tied to a real reward and a calendar moment.",
+      "results": "Hundreds of millions of video views; a record guacamole day.",
+      "results_confidence": "medium",
+      "source": "Trade press; TikTok",
+      "agency": "In-house / Day One"
+    },
+    {
+      "id": "red_bull_stratos",
+      "brand": "Red Bull",
+      "year": "2012",
+      "one_line": "Livestreamed a supersonic freefall from about 128,000 feet.",
+      "mechanism": "experience_as_pr",
+      "why": "Embodied 'gives you wings' through a real human feat.",
+      "results": "About 8 million concurrent YouTube live viewers (then a record); carried by hundreds of partners in dozens of countries.",
+      "results_confidence": "high (some secondary sales figures are unverified)",
+      "source": "Red Bull Media House; press",
+      "agency": "In-house"
+    },
+    {
+      "id": "lvmh_olympics",
+      "brand": "LVMH",
+      "year": "2024-2025",
+      "one_line": "Co-create the Paris Olympics rather than merely sponsor.",
+      "mechanism": "experience_as_pr",
+      "why": "Cultural contribution beats a logo placement.",
+      "results": "Cannes 2025 Luxury Grand Prix; hundreds of millions of euros in earned media.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2025",
+      "agency": "Havas Play"
+    },
+    {
+      "id": "cards_against_humanity",
+      "brand": "Cards Against Humanity",
+      "year": "2010s",
+      "one_line": "Anti-marketing prank stunts (e.g., 'Holiday Hole').",
+      "mechanism": "reverse_psychology",
+      "why": "Rewards in-group irony; signals brand confidence.",
+      "results": "Recurring earned media.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "who_gives_a_crap",
+      "brand": "Who Gives A Crap",
+      "year": "2013-present",
+      "one_line": "Eco toilet paper donating 50% of profits to sanitation.",
+      "mechanism": "product_truth_social_good",
+      "why": "Purpose + humor built into the product.",
+      "results": "Millions donated; strong DTC growth.",
+      "results_confidence": "medium",
+      "source": "Company reports; trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "liquid_death_collabs",
+      "brand": "Liquid Death",
+      "year": "2022-2024",
+      "one_line": "Absurd collabs (e.g., with Depend) and stunts.",
+      "mechanism": "collab_unexpected_brand",
+      "why": "Cross-audience novelty + earned press.",
+      "results": "Repeated viral earned media.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "liquid_death_greatest_hates",
+      "brand": "Liquid Death",
+      "year": "2020",
+      "one_line": "Turn hostile social comments into a heavy-metal album ('Greatest Hates').",
+      "mechanism": "turn_negativity_into_content",
+      "why": "Disarms critics and signals confidence.",
+      "results": "Viral earned media; ongoing series.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "unicef_dirty_water",
+      "brand": "UNICEF",
+      "year": "2009",
+      "one_line": "A NYC vending machine dispensing 'dirty water' labeled with diseases, for $1 donations.",
+      "mechanism": "symbolic_object_movement",
+      "why": "Makes a distant crisis visceral and local via an everyday object.",
+      "results": "High-share, low-cost guerrilla; widely covered.",
+      "results_confidence": "low (impact figures not well documented)",
+      "source": "Trade press",
+      "agency": "Droga5"
+    },
+    {
+      "id": "poo_pourri",
+      "brand": "Poo-Pourri",
+      "year": "2013",
+      "one_line": "A poised woman frankly explains bathroom odor.",
+      "mechanism": "absurd_metaphor_taboo",
+      "why": "Humor makes a taboo product talkable.",
+      "results": "Tens of millions of views; strong sales.",
+      "results_confidence": "medium",
+      "source": "Trade press",
+      "agency": "Harmon Brothers"
+    },
+    {
+      "id": "samsung_flipvertising",
+      "brand": "Samsung",
+      "year": "2023",
+      "one_line": "Hid free-phone deals in ads triggered only by Googling quirky keywords.",
+      "mechanism": "incompleteness_participation",
+      "why": "Turns ad-avoidance into a game.",
+      "results": "Reported large engagement lift; Cannes 2023.",
+      "results_confidence": "medium",
+      "source": "Cannes; CHEP Network",
+      "agency": "CHEP Network"
+    },
+    {
+      "id": "burger_king_google_home",
+      "brand": "Burger King",
+      "year": "2017",
+      "one_line": "A TV ad that triggered viewers' Google Home devices to read the Whopper's Wikipedia entry.",
+      "mechanism": "geo_rival_hijack",
+      "why": "Hijacks an adjacent device/medium for reach.",
+      "results": "Cannes Direct Grand Prix; huge earned media (and controversy).",
+      "results_confidence": "high",
+      "source": "Cannes; trade press",
+      "agency": "David Miami"
+    },
+    {
+      "id": "loewe_suna_fujita",
+      "brand": "Loewe",
+      "year": "2023",
+      "one_line": "A limited ceramics-inspired collection with a Japanese studio.",
+      "mechanism": "limited_drop_scarcity",
+      "why": "Scarcity + craft story drives desire.",
+      "results": "Sold-out drops and press.",
+      "results_confidence": "low (needs primary sourcing)",
+      "source": "Trade press",
+      "agency": "In-house",
+      "needs_sourcing": true
+    },
+    {
+      "id": "popflex",
+      "brand": "Popflex / Cassey Ho",
+      "year": "2020s",
+      "one_line": "Creator-founder shows the product-design process.",
+      "mechanism": "build_in_public",
+      "why": "Story + consistency build investment.",
+      "results": "Viral product drops.",
+      "results_confidence": "low (needs primary sourcing)",
+      "source": "Trade press",
+      "agency": "Founder",
+      "needs_sourcing": true
+    },
+    {
+      "id": "sydney_opera_house_play_it_safe",
+      "brand": "Sydney Opera House",
+      "year": "2024",
+      "one_line": "A satirical song urging you NOT to play it safe.",
+      "mechanism": "flaw_into_story",
+      "why": "Craft + wit embodying brand spirit.",
+      "results": "Cannes 2024 Film Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "The Monkeys / Accenture Song"
+    },
+    {
+      "id": "coca_cola_recycle_logo",
+      "brand": "Coca-Cola",
+      "year": "2024",
+      "one_line": "See coca_cola_recycle_me (distinctive-asset flex for a recycling message).",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Duplicate reference; see coca_cola_recycle_me.",
+      "results": "Cannes 2024 Print & Publishing Grand Prix.",
+      "results_confidence": "high",
+      "source": "Cannes Lions 2024",
+      "agency": "Ogilvy New York"
+    },
+    {
+      "id": "volvo_epic_split",
+      "brand": "Volvo Trucks",
+      "year": "2013",
+      "one_line": "Jean-Claude Van Damme does a split between two reversing trucks to prove dynamic steering.",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Awe + a single-take, unfakeable feat makes a B2B feature massively shareable.",
+      "results": "More than 72M YouTube views (Contagious calls it the most-watched automotive ad on YouTube); ~EUR126M / $172.6M in EARNED MEDIA value.",
+      "results_confidence": "high (views/earned media); the circulating '$170M revenue' figure is a misread of earned-media value and is NOT revenue",
+      "source": "Contagious; Volvo Cannes case",
+      "agency": "Forsman & Bodenfors"
+    },
+    {
+      "id": "bmw_the_hire",
+      "brand": "BMW",
+      "year": "2001-2002",
+      "one_line": "A-list-directed action short films starring Clive Owen as 'The Driver'.",
+      "mechanism": "branded_entertainment",
+      "why": "Put premium content where affluent male buyers already were, before 'content marketing' existed.",
+      "results": "IPA case: films cost ~56% of traditional advertising for the exposure gained, more than doubled BMW's growth (a 74% sales increase), ~$26M free publicity, 11M+ views in 4 months.",
+      "results_confidence": "high (IPA case)",
+      "source": "IPA Effectiveness case",
+      "agency": "Fallon"
+    },
+    {
+      "id": "dos_equis_interesting_man",
+      "brand": "Dos Equis",
+      "year": "2006-2016",
+      "one_line": "An absurdly worldly gentleman endorses 'the beer he doesn't always drink'.",
+      "mechanism": "aspirational_alter_ego",
+      "why": "Humor + aspiration; a spokesman embodying the drinker's fantasy self.",
+      "results": "Heineken USA states US volume tripled over the 10-year campaign; widely cited ~22% US sales rise in 2009. Context: Dos Equis retail sales fell ~8% in 2025 (NIQ), prompting a revival.",
+      "results_confidence": "high (tripled); medium (22%)",
+      "source": "CNN (Jan 2026); Heineken USA",
+      "agency": "Euro RSCG (Havas)"
+    },
+    {
+      "id": "honda_cog",
+      "brand": "Honda",
+      "year": "2003",
+      "one_line": "85+ Accord parts trigger a Rube Goldberg chain reaction in one take.",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Craft as proof of engineering precision.",
+      "results": "Honda/Campaign cite UK sales nearly doubling by 2005; Gold Lion 2003.",
+      "results_confidence": "medium (self-reported sales); high (award)",
+      "source": "Honda/Campaign; Cannes",
+      "agency": "Wieden+Kennedy London"
+    },
+    {
+      "id": "sony_bravia_balls",
+      "brand": "Sony Bravia",
+      "year": "2005",
+      "one_line": "250,000 colored balls bounce down San Francisco hills ('like no other').",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Pure aesthetic emotion in a commodity LCD market.",
+      "results": "Credited with Sony's LCD share turnaround; millions of views.",
+      "results_confidence": "medium (self-reported/secondary)",
+      "source": "Campaign; Financial Times",
+      "agency": "Fallon (dir. Nicolai Fuglsig)"
+    },
+    {
+      "id": "got_milk",
+      "brand": "California Milk Processor Board",
+      "year": "1993",
+      "one_line": "Show the misery of running out of milk ('Got Milk?').",
+      "mechanism": "deprivation_framing",
+      "why": "Loss aversion; milk framed as the complement you miss when it's gone.",
+      "results": "California sales ~+7% in year one, reversing a decade of decline; 90%+ awareness.",
+      "results_confidence": "high (short-term CA); CONTESTED (it did not reverse the long-term national per-capita decline)",
+      "source": "ANA; Marketing with Dave",
+      "agency": "Goodby, Silverstein & Partners"
+    },
+    {
+      "id": "wendys_wheres_the_beef",
+      "brand": "Wendy's",
+      "year": "1984",
+      "one_line": "An elderly woman demands 'Where's the beef?' from a tiny rival patty.",
+      "mechanism": "coin_a_catchphrase",
+      "why": "Comparative humor + a catchphrase that escaped into culture.",
+      "results": "Widely cited sales +31% in 1984, reaching ~$945M by 1985.",
+      "results_confidence": "medium-high (secondary)",
+      "source": "Trade press / case studies",
+      "agency": "Dancer Fitzgerald Sample"
+    },
+    {
+      "id": "coca_cola_hilltop",
+      "brand": "Coca-Cola",
+      "year": "1971",
+      "one_line": "Multicultural youth sing a unity jingle ('I'd Like to Buy the World a Coke').",
+      "mechanism": "sonic_earworm",
+      "why": "Post-1960s idealism; the jingle became a charting single.",
+      "results": "100,000+ letters to Coca-Cola; the jingle charted. No reliable direct sales figure.",
+      "results_confidence": "high (cultural); unverified (sales)",
+      "source": "Historical / McCann",
+      "agency": "McCann Erickson"
+    },
+    {
+      "id": "budweiser_puppy_love",
+      "brand": "Budweiser",
+      "year": "2014",
+      "one_line": "A puppy-and-Clydesdale friendship Super Bowl spot.",
+      "mechanism": "emotional_storytelling",
+      "why": "Warmth + pre-release social seeding; the Clydesdales are a distinctive asset.",
+      "results": "~1.34M shares (Unruly) - the most-shared 2014 Super Bowl ad; USA Today Ad Meter winner; 50M+ views. No sales figure.",
+      "results_confidence": "high (engagement)",
+      "source": "NPR; The Drum; Unruly",
+      "agency": "Anomaly"
+    },
+    {
+      "id": "skoda_cake",
+      "brand": "Skoda",
+      "year": "2007",
+      "one_line": "A life-size Fabia built entirely from cake ('Full of lovely stuff').",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Craft + charm overturn a 'naff' brand perception.",
+      "results": "260k+ YouTube views in 2 weeks (700k+ by June); YouGov perception lift.",
+      "results_confidence": "medium",
+      "source": "Wikipedia; Campaign",
+      "agency": "Fallon London"
+    },
+    {
+      "id": "chipotle_scarecrow",
+      "brand": "Chipotle",
+      "year": "2013",
+      "one_line": "An animated film + mobile game indicting industrial food ('The Scarecrow').",
+      "mechanism": "branded_entertainment",
+      "why": "Emotional story + a gamified reward drives people to the store.",
+      "results": "5.6M views in a week; #1 iTunes adventure game; 18.4M social conversations in month one (agency); Cannes PR Grand Prix 2014.",
+      "results_confidence": "high (awards); medium (engagement)",
+      "source": "Cannes; CAA/Moonbot",
+      "agency": "CAA Marketing + Moonbot Studios"
+    },
+    {
+      "id": "adidas_runner_321",
+      "brand": "Adidas",
+      "year": "2023",
+      "one_line": "Reserve marathon bib 321 (Trisomy-21) for a neurodivergent athlete.",
+      "mechanism": "underserved_inclusivity",
+      "why": "An iconic number gives an overlooked community visibility.",
+      "results": "All six world marathon majors reserved a bib; 278 athletes signed up; ~268M earned impressions; Cannes Direct Grand Prix 2023.",
+      "results_confidence": "high (awards); medium (impressions)",
+      "source": "Cannes; FCB Toronto",
+      "agency": "FCB Toronto + Current Global"
+    },
+    {
+      "id": "ariel_share_the_load",
+      "brand": "Ariel (P&G India)",
+      "year": "2015-ongoing",
+      "one_line": "'Is laundry only a woman's job?' challenges household gender norms.",
+      "mechanism": "values_stand",
+      "why": "A gender-equity movement tied directly to product superiority.",
+      "results": "Effie APAC: +60% sales, 1.6B earned impressions, 1.5M+ male pledges; #1 in the 2017 WARC 100.",
+      "results_confidence": "high (awards/WARC); medium (sales)",
+      "source": "Effie APAC; WARC",
+      "agency": "BBDO India"
+    },
+    {
+      "id": "cadbury_not_just_an_ad",
+      "brand": "Cadbury (Mondelez India)",
+      "year": "2020-2021",
+      "one_line": "Geo-targeted ads that double as free ads for local shops; an AI-cloned Shah Rukh Khan for 85,000+ retailers.",
+      "mechanism": "useful_utility",
+      "why": "Personalization + purpose helping small businesses survive the pandemic.",
+      "results": "Cannes Titanium Lion 2022 + Creative Effectiveness Grand Prix 2023.",
+      "results_confidence": "high (awards); medium (store counts)",
+      "source": "Cannes; Best Media Info; MxMIndia",
+      "agency": "Ogilvy India"
+    },
+    {
+      "id": "cadbury_worldwide_hide",
+      "brand": "Cadbury (Mondelez UK)",
+      "year": "2021-ongoing",
+      "one_line": "Hide a virtual Easter egg for a loved one anywhere on Google Street View.",
+      "mechanism": "gamified_treasure_hunt",
+      "why": "Generosity + play turned into e-commerce.",
+      "results": "~800k eggs hidden in Year 1; 515M reach (agency).",
+      "results_confidence": "medium (agency-reported)",
+      "source": "Ogilvy UK",
+      "agency": "VCCP"
+    },
+    {
+      "id": "corona_plastic_fishing",
+      "brand": "Corona (AB InBev)",
+      "year": "2021-2022",
+      "one_line": "Pay fishers to haul ocean plastic instead of fish.",
+      "mechanism": "product_truth_social_good",
+      "why": "Purpose executed through existing infrastructure.",
+      "results": "~20 tons of plastic recovered, 2.2B impressions (PR-reported); 3 Gold Lions 2022.",
+      "results_confidence": "high (awards); medium/CONTESTED (environmental efficacy questioned)",
+      "source": "Cannes; Allison PR",
+      "agency": "We Believers"
+    },
+    {
+      "id": "apple_underdogs",
+      "brand": "Apple",
+      "year": "2019-ongoing",
+      "one_line": "A sitcom-style team saves a pitch using Apple products.",
+      "mechanism": "branded_entertainment",
+      "why": "Relatable workplace comedy carries B2B product integration.",
+      "results": "D&AD Pencil 2020; no sales metrics disclosed.",
+      "results_confidence": "high (craft award); n/a (business)",
+      "source": "D&AD",
+      "agency": "TBWA\\Media Arts Lab"
+    },
+    {
+      "id": "coors_lights_out",
+      "brand": "Coors Light",
+      "year": "2023",
+      "one_line": "A foul ball 'broke' a Coors LED ad, so they made a dead-pixel special-edition can in 48 hours.",
+      "mechanism": "cultural_moment_hijack",
+      "why": "Agile reactive marketing off an unofficial sports moment.",
+      "results": "Two Gold Cannes Lions 2024 (Outdoor; Brand Experience).",
+      "results_confidence": "high (awards); low (business)",
+      "source": "Cannes",
+      "agency": "Rethink"
+    },
+    {
+      "id": "michelob_mcenroe",
+      "brand": "Michelob Ultra",
+      "year": "2022",
+      "one_line": "John McEnroe plays AI-generated avatars of his younger selves.",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Spectacle carries the 'it's only worth it if you enjoy it' idea.",
+      "results": "2023 Sports Emmy; 10M+ views, +95% brand searches (agency/press release).",
+      "results_confidence": "high (Emmy); medium (metrics)",
+      "source": "Sports Emmy; FCB NY",
+      "agency": "FCB New York"
+    },
+    {
+      "id": "bodyform_wombstories",
+      "brand": "Bodyform / Libresse (Essity)",
+      "year": "2020",
+      "one_line": "A diverse, unfiltered depiction of womb experiences (periods, endometriosis, menopause, IVF).",
+      "mechanism": "reveal_the_gap",
+      "why": "Emotional honesty breaks a long-standing category taboo.",
+      "results": "UK share +14% (agency); 100M+ views; Cannes Titanium + Film Craft + Health & Wellness Grand Prix 2021.",
+      "results_confidence": "high (awards); medium (share)",
+      "source": "Cannes; AMV BBDO; Creativebrief",
+      "agency": "AMV BBDO"
+    },
+    {
+      "id": "rsf_uncensored_library",
+      "brand": "Reporters Without Borders",
+      "year": "2020",
+      "one_line": "A censorship-proof library of banned journalism built inside Minecraft.",
+      "mechanism": "useful_utility",
+      "why": "Reaches youth where censors can't follow.",
+      "results": "Reached gamers in 165 countries; 790+ articles; +62% RSF donations (agency); Cannes PR Grand Prix 2020.",
+      "results_confidence": "high (awards); medium (donations)",
+      "source": "Cannes; D&AD",
+      "agency": "DDB Berlin + BlockWorks"
+    },
+    {
+      "id": "tinder_swipe_night",
+      "brand": "Tinder",
+      "year": "2019",
+      "one_line": "An in-app first-person apocalypse choose-your-own-adventure that shapes your matches.",
+      "mechanism": "playable_ad",
+      "why": "Turns passive swiping into a shared narrative for Gen Z.",
+      "results": "~20M participants; +26% matches on Swipe Nights.",
+      "results_confidence": "high",
+      "source": "Fast Company; TechCrunch",
+      "agency": "72andSunny + M ss ng P eces"
+    },
+    {
+      "id": "cheetos_cant_touch_this",
+      "brand": "Cheetos",
+      "year": "2020",
+      "one_line": "MC Hammer + 'Cheetle' dust as an excuse to dodge tasks.",
+      "mechanism": "flaw_into_story",
+      "why": "Humor + nostalgia turn the messy orange dust into the whole idea.",
+      "results": "119M+ TikTok effect impressions and brand-lift gains (self-reported).",
+      "results_confidence": "medium (self-reported)",
+      "source": "Shorty Awards",
+      "agency": "Goodby, Silverstein & Partners"
+    },
+    {
+      "id": "elf_eyes_lips_face",
+      "brand": "e.l.f. Cosmetics",
+      "year": "2019",
+      "one_line": "First brand-commissioned original TikTok song + hashtag challenge.",
+      "mechanism": "challenge_nomination_loop",
+      "why": "Native UGC co-creation for Gen Z at low cost.",
+      "results": "Billions of hashtag views and 3.5M+ UGC videos (counts vary by source); the song hit #4 on the Spotify viral chart.",
+      "results_confidence": "high (cultural); medium (view counts)",
+      "source": "Movers+Shakers; trade press",
+      "agency": "Movers+Shakers"
+    },
+    {
+      "id": "coinbase_qr_code",
+      "brand": "Coinbase",
+      "year": "2022",
+      "one_line": "A bouncing, color-shifting QR code on a black screen for 60 Super Bowl seconds.",
+      "mechanism": "incompleteness_participation",
+      "why": "A pure curiosity gap drives direct response.",
+      "results": "20M+ landing hits in a minute (crashed the site); app rose #186 to #2 in the App Store; won a Super Clio.",
+      "results_confidence": "high (App Store rank/crash); medium (20M)",
+      "source": "Trade press",
+      "agency": "In-house"
+    },
+    {
+      "id": "mastercard_true_name",
+      "brand": "Mastercard",
+      "year": "2019",
+      "one_line": "Cards displaying a chosen name for trans/non-binary users without a legal name change.",
+      "mechanism": "underserved_inclusivity",
+      "why": "Inclusion built into the product, not just the messaging.",
+      "results": "Cannes Brand Experience Grand Prix 2021; Clio/D&AD Black Pencil.",
+      "results_confidence": "high (awards); impression stats unverified",
+      "source": "Cannes",
+      "agency": "McCann New York"
+    },
+    {
+      "id": "nike_nothing_beats_a_londoner",
+      "brand": "Nike",
+      "year": "2018",
+      "one_line": "258 real young Londoners one-up each other's sport struggles, with star cameos.",
+      "mechanism": "underserved_inclusivity",
+      "why": "Hyperlocal specificity plus celebrity cameos.",
+      "results": "London Nike searches +93% (Lyst); Cannes Social & Influencer Grand Prix + Titanium 2018.",
+      "results_confidence": "high (awards); medium (search)",
+      "source": "Creative Review; Campaign Live",
+      "agency": "Wieden+Kennedy London"
+    },
+    {
+      "id": "gillette_we_believe",
+      "brand": "Gillette (P&G)",
+      "year": "2019",
+      "one_line": "Challenging 'toxic masculinity' and reworking the tagline.",
+      "mechanism": "values_stand",
+      "why": "A purpose stand in the #MeToo era - the cautionary case for this mechanism.",
+      "results": "CONTESTED: among YouTube's most-disliked videos; the $8B P&G Gillette writedown is NOT clearly attributable to the ad; business impact is genuinely disputed.",
+      "results_confidence": "low (business impact disputed)",
+      "source": "Campaign Brief",
+      "agency": "Grey New York"
+    },
+    {
+      "id": "pg_the_talk",
+      "brand": "P&G",
+      "year": "2017",
+      "one_line": "Black parents prepare their children for racial bias ('The Talk').",
+      "mechanism": "reveal_the_gap",
+      "why": "A cultural truth told unflinchingly.",
+      "results": "Cannes Film Grand Prix 2018 + Primetime Emmy; 1.86B impressions (agency).",
+      "results_confidence": "high (awards); medium (impressions)",
+      "source": "Cannes; Emmy",
+      "agency": "BBDO NY + Egami Group"
+    },
+    {
+      "id": "dove_turn_your_back",
+      "brand": "Dove",
+      "year": "2023",
+      "one_line": "Urged users to turn their backs on TikTok's 'Bold Glamour' AI beauty filter.",
+      "mechanism": "cultural_moment_hijack",
+      "why": "A body-esteem stand, briefed-to-live in days.",
+      "results": "1B+ impressions (agency); Cannes Media Grand Prix 2023.",
+      "results_confidence": "high (award); medium (impressions)",
+      "source": "Cannes; Campaign Live",
+      "agency": "Ogilvy"
+    },
+    {
+      "id": "specsavers_shouldve_gone",
+      "brand": "Specsavers",
+      "year": "2002-ongoing",
+      "one_line": "Comic scenarios of eyesight failures ('Should've gone to Specsavers').",
+      "mechanism": "coin_a_catchphrase",
+      "why": "Consistent humor builds an ownable, repeatable line.",
+      "results": "~92% UK awareness (Tracksuit); Marketing Week Brand of the Year 2025.",
+      "results_confidence": "high (awards); medium (stats)",
+      "source": "IPA; Marketing Week",
+      "agency": "In-house"
+    },
+    {
+      "id": "mcdonalds_raise_your_arches",
+      "brand": "McDonald's UK",
+      "year": "2023",
+      "one_line": "An eyebrow-raise (mimicking the arches) as a silent invitation; no product shown.",
+      "mechanism": "coin_a_catchphrase",
+      "why": "An ownable, wordless non-verbal cue.",
+      "results": "Silver Cannes Lion 2023; the broader brand-love strategy is tied to ~GBP1.2bn incremental revenue in the IPA case (multi-year, not this ad alone).",
+      "results_confidence": "high (award); medium (revenue attribution)",
+      "source": "The One Club; IPA",
+      "agency": "Leo Burnett London (dir. Edgar Wright)"
+    },
+    {
+      "id": "doordash_all_the_ads",
+      "brand": "DoorDash",
+      "year": "2024",
+      "one_line": "Promised to deliver every product advertised in the Super Bowl via one promo code.",
+      "mechanism": "cultural_moment_hijack",
+      "why": "Meta-newsjacking the entire broadcast, not one slot.",
+      "results": "Dan Wieden Titanium Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Wieden+Kennedy Portland + Superette"
+    },
+    {
+      "id": "poptarts_edible_mascot",
+      "brand": "Pop-Tarts",
+      "year": "2023",
+      "one_line": "A Pop-Tart mascot is crowned, then 'baked and eaten' by the bowl-game winner.",
+      "mechanism": "unhinged_mascot_lore",
+      "why": "Absurd spectacle spawns endless social chatter.",
+      "results": "Cannes Brand Experience & Activation Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Weber Shandwick New York"
+    },
+    {
+      "id": "spotify_spreadbeats",
+      "brand": "Spotify Advertising",
+      "year": "2024",
+      "one_line": "A B2B media-plan Excel spreadsheet turned into a music video.",
+      "mechanism": "category_code_subversion",
+      "why": "Makes a dry B2B artifact delightful.",
+      "results": "Cannes Digital Craft Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "FCB New York"
+    },
+    {
+      "id": "hornbach_square_metre",
+      "brand": "Hornbach",
+      "year": "2024",
+      "one_line": "A man's morning routine unfolds in a single transforming square metre.",
+      "mechanism": "hero_demo_spectacle",
+      "why": "Craft demonstrates 'every square metre deserves the best'.",
+      "results": "Cannes Film Craft Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Heimat\\TBWA Berlin"
+    },
+    {
+      "id": "kitkat_phone_break",
+      "brand": "KitKat",
+      "year": "2024",
+      "one_line": "OOH images swap phones for KitKats in everyday scrolling moments.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "A wordless image reinforces 'Have a break'.",
+      "results": "Cannes Outdoor Grand Prix 2025.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "VML Prague"
+    },
+    {
+      "id": "magnum_find_your_summer",
+      "brand": "Magnum Ice Cream",
+      "year": "2024",
+      "one_line": "An outdoor campaign built entirely on Magnum's visual codes.",
+      "mechanism": "asset_saturation",
+      "why": "Distinctive assets carry the message with no copy.",
+      "results": "Cannes Outdoor Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "LOLA MullenLowe Madrid"
+    },
+    {
+      "id": "siemens_magnetic_stories",
+      "brand": "Siemens Healthineers",
+      "year": "2024",
+      "one_line": "Children's audiobooks that fold scary MRI sounds into the story.",
+      "mechanism": "useful_utility",
+      "why": "Reframes a frightening medical experience for kids.",
+      "results": "Cannes Health & Wellness Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Area 23 New York"
+    },
+    {
+      "id": "jcdecaux_marina_prieto",
+      "brand": "JCDecaux",
+      "year": "2024",
+      "one_line": "A 100-year-old grandmother 'takes over' Madrid's subway to prove poster power.",
+      "mechanism": "unexpected_authority",
+      "why": "A charming demonstration of OOH reach.",
+      "results": "Cannes Creative B2B Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "David Madrid"
+    },
+    {
+      "id": "philips_refurb",
+      "brand": "Philips",
+      "year": "2024",
+      "one_line": "Sell returned products (with an upgraded warranty) cheaper to cut waste.",
+      "mechanism": "product_truth_social_good",
+      "why": "Sustainability turned into a business model.",
+      "results": "Cannes Creative Business Transformation Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "LePub Amsterdam"
+    },
+    {
+      "id": "renault_cars_to_work",
+      "brand": "Renault",
+      "year": "2024",
+      "one_line": "Lend cars to people in transit-poor areas so they can reach jobs ('CareMakers').",
+      "mechanism": "useful_utility",
+      "why": "Solves a real barrier to employment.",
+      "results": "Cannes Creative Commerce + SDG Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Publicis Conseil"
+    },
+    {
+      "id": "mastercard_where_to_settle",
+      "brand": "Mastercard",
+      "year": "2024",
+      "one_line": "A data platform matching Ukrainian refugees with Polish towns where they'll thrive.",
+      "mechanism": "useful_utility",
+      "why": "Data solves a humanitarian and economic problem at once.",
+      "results": "Cannes Creative Data Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "McCann Poland"
+    },
+    {
+      "id": "nz_herpes_foundation",
+      "brand": "NZ Herpes Foundation",
+      "year": "2025",
+      "one_line": "A destigmatization course + a live ranking framing NZ as 'the best place to have herpes'.",
+      "mechanism": "honest_humor_crisis",
+      "why": "Humor disarms a heavy stigma.",
+      "results": "Cannes Health Grand Prix for Good 2025.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Motion Sickness / FINCH"
+    },
+    {
+      "id": "gymshark",
+      "brand": "Gymshark",
+      "year": "2012-ongoing",
+      "one_line": "Bootstrapped gymwear built on long-term micro-influencer partnerships and the #Gymshark66 challenge.",
+      "mechanism": "build_in_public",
+      "why": "Authentic creators + a community identity, not paid media.",
+      "results": "FY2023 revenue GBP556.2M (~96% DTC); ~$1.45B valuation in 2020 (General Atlantic).",
+      "results_confidence": "high (revenue); medium (early-influencer ROI claims)",
+      "source": "Company filings via Appbrew; General Atlantic",
+      "agency": "In-house"
+    },
+    {
+      "id": "death_wish_coffee",
+      "brand": "Death Wish Coffee",
+      "year": "2016",
+      "one_line": "Won Intuit's free Super Bowl 50 ad as 'the world's strongest coffee'.",
+      "mechanism": "experience_as_pr",
+      "why": "A David-vs-Goliath story powered by community voting.",
+      "results": "Revenue ~$3M in 2015 grew to ~$20M after the ad (Intuit, confirmed by the founder to Ad Age); 150,000+ site visitors within seconds; expanded from 7 to 150 stores.",
+      "results_confidence": "high",
+      "source": "Intuit QuickBooks; Ad Age; Fortune; CNN",
+      "agency": "RPA (ad) / Intuit"
+    },
+    {
+      "id": "olipop",
+      "brand": "Olipop",
+      "year": "2018-ongoing",
+      "one_line": "'A new kind of soda' - prebiotic, low-sugar, nostalgia-forward.",
+      "mechanism": "category_code_subversion",
+      "why": "Reframes soda as functional; heavy creator content.",
+      "results": "$400M sales in 2024; ~$1.85B valuation Feb 2025; 2,128% three-year growth (Inc 5000).",
+      "results_confidence": "high",
+      "source": "Fortune; Inc; Bloomberg",
+      "agency": "In-house + Darkroom"
+    },
+    {
+      "id": "poppi",
+      "brand": "Poppi",
+      "year": "2018-2025",
+      "one_line": "Prebiotic soda; founder-led TikTok + influencer blitz; two Super Bowl ads.",
+      "mechanism": "founder_comedy",
+      "why": "Native TikTok content before its CPG peers.",
+      "results": "$500M+ in 2024 sales; acquired by PepsiCo for $1.95B in 2025.",
+      "results_confidence": "high (acquisition); CONTESTED (its 2025 Super Bowl vending-machine influencer stunt drew 'out of touch' backlash)",
+      "source": "Retail Brew",
+      "agency": "In-house (CAVU / Rohan Oza)"
+    },
+    {
+      "id": "dr_squatch",
+      "brand": "Dr. Squatch",
+      "year": "2020-2021",
+      "one_line": "Natural men's soap; edutainment videos ('You're not a dish, you're a man'); first Super Bowl ad.",
+      "mechanism": "founder_comedy",
+      "why": "Entertaining education flips a boring category.",
+      "results": "~$100M revenue in 2020 with 350% YoY growth for two years; the Super Bowl ad drove ~200% best-seller-rank lift and ~100% day-of sales growth (company-stated).",
+      "results_confidence": "medium-high (company-stated)",
+      "source": "Shopify; Profitero/Retail Dive",
+      "agency": "Raindrop"
+    },
+    {
+      "id": "tonys_chocolonely",
+      "brand": "Tony's Chocolonely",
+      "year": "2005-ongoing",
+      "one_line": "Deliberately unequal chocolate segments symbolize cocoa-industry inequality.",
+      "mechanism": "symbolic_object_movement",
+      "why": "The product itself IS the message; historically near-zero paid media.",
+      "results": "EUR240M revenue in 2025 (+20%), with US sales +50% YoY; allocated 0% to paid TV/radio for most of its history.",
+      "results_confidence": "high (revenue)",
+      "source": "ConfectioneryNews",
+      "agency": "In-house"
+    },
+    {
+      "id": "mrbeast_feastables",
+      "brand": "MrBeast - Feastables",
+      "year": "2022-ongoing",
+      "one_line": "Creator-owned chocolate launched to 300M+ subscribers, Walmart-first.",
+      "mechanism": "creator_audience_first",
+      "why": "Attention ownership means near-zero marginal customer-acquisition cost.",
+      "results": "Per Bloomberg (citing documents sent to investors), Feastables generated ~$250M in sales and >$20M profit in 2024, up from $33M (2022) and $96M (2023).",
+      "results_confidence": "high (primary investor documents)",
+      "source": "Bloomberg (Mar 2025)",
+      "agency": "Beast Industries"
+    },
+    {
+      "id": "bombas",
+      "brand": "Bombas",
+      "year": "2013-ongoing",
+      "one_line": "Buy-one-give-one socks and apparel.",
+      "mechanism": "one_for_one_giving",
+      "why": "Purpose drives word-of-mouth; quality retains.",
+      "results": "$1.3B+ lifetime sales (the first Shark Tank company to reach $1B) and 150M+ items donated.",
+      "results_confidence": "high",
+      "source": "Forbes",
+      "agency": "In-house"
+    },
+    {
+      "id": "vw_piano_stairs",
+      "brand": "Volkswagen",
+      "year": "2009",
+      "one_line": "Subway stairs turned into a working piano to promote BlueMotion eco tech ('The Fun Theory').",
+      "mechanism": "fun_theory",
+      "why": "Fun beats guilt at changing behavior.",
+      "results": "66% more people chose the stairs over the escalator (single-site observation); 20M+ YouTube views.",
+      "results_confidence": "medium (single-site observational)",
+      "source": "DDB; LA Times",
+      "agency": "DDB Stockholm"
+    },
+    {
+      "id": "tnt_push_to_add_drama",
+      "brand": "TNT Belgium",
+      "year": "2012",
+      "one_line": "A big red button on a quiet square unleashes staged mayhem to launch a 'drama' channel.",
+      "mechanism": "incompleteness_participation",
+      "why": "Irresistible curiosity + a shareable spectacle.",
+      "results": "~30M views; the 2nd-most-shared ad on YouTube at the time.",
+      "results_confidence": "high (views)",
+      "source": "The Drum",
+      "agency": "Duval Guillaume"
+    },
+    {
+      "id": "british_airways_magic_of_flying",
+      "brand": "British Airways",
+      "year": "2013",
+      "one_line": "Digital billboards show a child pointing at real BA planes overhead, with live flight data ('#lookup').",
+      "mechanism": "live_data_ooh",
+      "why": "Real-time data + wonder.",
+      "results": "1.36M views, 45M earned impressions, 364 articles in 118 countries (Ogilvy); Cannes Direct Grand Prix.",
+      "results_confidence": "high (award); medium (metrics)",
+      "source": "Ad Age; OgilvyOne",
+      "agency": "OgilvyOne"
+    },
+    {
+      "id": "womens_aid_look_at_me",
+      "brand": "Women's Aid",
+      "year": "2015",
+      "one_line": "A billboard bruise heals as more passersby (via facial recognition) look at it.",
+      "mechanism": "reveal_the_gap",
+      "why": "Participation implicates bystanders in domestic-abuse apathy.",
+      "results": "Dwell time +349%; reach 326.9M across 20 countries (Quividi/SOFII); Cannes Gold Outdoor 2015.",
+      "results_confidence": "high (award); medium (metrics)",
+      "source": "Ocean Outdoor; SOFII",
+      "agency": "WCRS + Ocean Outdoor"
+    },
+    {
+      "id": "coca_cola_small_world_machines",
+      "brand": "Coca-Cola",
+      "year": "2013",
+      "one_line": "Video-portal vending machines let strangers in India and Pakistan complete tasks together.",
+      "mechanism": "experience_as_pr",
+      "why": "Shared humanity across a hostile border.",
+      "results": "Site traffic doubled and sharing rose +500% (Cannes case); Gold Lion 2013.",
+      "results_confidence": "high (award); medium (metrics)",
+      "source": "Cannes; Leo Burnett",
+      "agency": "Leo Burnett"
+    },
+    {
+      "id": "burger_king_burn_that_ad",
+      "brand": "Burger King Brazil",
+      "year": "2019",
+      "one_line": "An AR app 'burns' a McDonald's ad to reveal a free Whopper.",
+      "mechanism": "geo_rival_hijack",
+      "why": "Hijacks a competitor's media spend.",
+      "results": "9 Cannes Lions 2019; in-app sales +55% and ~1M free Whoppers (agency; figures vary).",
+      "results_confidence": "high (awards); medium (sales)",
+      "source": "Cannes; David",
+      "agency": "David Sao Paulo"
+    },
+    {
+      "id": "ihop_ihob",
+      "brand": "IHOP",
+      "year": "2018",
+      "one_line": "Temporarily 'renamed' itself IHOb to launch a burger line.",
+      "mechanism": "staged_conspiracy_reveal",
+      "why": "Outrage and curiosity earn massive free media.",
+      "results": "Burger sales quadrupled post-campaign (stated on Dine Brands' Q2 2018 earnings call); 20,000+ media stories, ~36B impressions.",
+      "results_confidence": "high (earnings call); CONTESTED (some Foursquare foot-traffic data showed flat traffic)",
+      "source": "Dine Brands Q2 2018 earnings call",
+      "agency": "Droga5"
+    },
+    {
+      "id": "aldi_free_cuthbert",
+      "brand": "Aldi UK",
+      "year": "2021",
+      "one_line": "After M&S sued over its Cuthbert caterpillar cake, Aldi ran a witty '#FreeCuthbert' campaign.",
+      "mechanism": "turn_negativity_into_content",
+      "why": "Agile humor won public sympathy in a legal fight.",
+      "results": "500M+ social impressions; Twitter following +30%; GBP0 media spend; news sentiment Aldi +8.5% vs M&S -134% (agency case).",
+      "results_confidence": "medium (agency-reported)",
+      "source": "McCann Manchester",
+      "agency": "McCann Manchester"
+    },
+    {
+      "id": "weetabix_beanz_on_bix",
+      "brand": "Weetabix",
+      "year": "2021",
+      "one_line": "A single tweet of Weetabix topped with Heinz beans; dozens of brands piled in.",
+      "mechanism": "cultural_moment_hijack",
+      "why": "'Would you / wouldn't you' divisiveness fuels sharing.",
+      "results": "1B+ views; +15% sales at Sainsbury's that week; spontaneous awareness +40%; GBP0 paid.",
+      "results_confidence": "medium-high",
+      "source": "Marketing Week; The Grocer; Campaign Live; Netimperative",
+      "agency": "Frank PR"
+    },
+    {
+      "id": "heinz_seemingly_ranch",
+      "brand": "Heinz",
+      "year": "2023",
+      "one_line": "Relaunched a failing sauce by hijacking a viral Taylor Swift NFL photo ('Ketchup & Seemingly Ranch').",
+      "mechanism": "cultural_moment_hijack",
+      "why": "Rides a Swiftie moment in real time.",
+      "results": "Agency-reported 6.1B impressions, $160M earned media, and a 52,987% ROI.",
+      "results_confidence": "medium (self-reported; the ROI figure especially should not be stated as fact)",
+      "source": "Contagious; The Drum",
+      "agency": "Rethink"
+    },
+    {
+      "id": "scrub_daddy",
+      "brand": "Scrub Daddy",
+      "year": "2020-ongoing",
+      "one_line": "Absurdist, self-aware sponge-mascot skits native to TikTok.",
+      "mechanism": "unhinged_mascot_lore",
+      "why": "Entertainment-first content for Gen Z.",
+      "results": "$220M+ revenue in 2023 (Reuters); 4M+ TikTok followers.",
+      "results_confidence": "medium-high (revenue); low (TikTok causal attribution)",
+      "source": "Reuters; Growth Navigate",
+      "agency": "In-house"
+    },
+    {
+      "id": "sandy_hook_back_to_school",
+      "brand": "Sandy Hook Promise",
+      "year": "2019",
+      "one_line": "A cheery back-to-school ad turns into a school shooting; supplies become survival tools.",
+      "mechanism": "bait_and_switch_reveal",
+      "why": "Subverts a familiar format for a gut-punch.",
+      "results": "26M views in 24 hours; $100k in donations on day one; +400% site visits on a $37k paid budget; 3.9B impressions; 2020 Primetime Emmy.",
+      "results_confidence": "high",
+      "source": "Wikipedia; IPA; Shorty Awards",
+      "agency": "BBDO New York"
+    },
+    {
+      "id": "heineken_worlds_apart",
+      "brand": "Heineken",
+      "year": "2017",
+      "one_line": "Strangers with opposing views build a bar, then choose to talk over a beer.",
+      "mechanism": "reveal_the_gap",
+      "why": "Bridges division with the product as facilitator (a smarter counterpoint to the Pepsi/Kendall Jenner ad).",
+      "results": "40M+ views; UK off-trade volume +11.9% vs the prior year - nearly twice premium-lager category growth (Nielsen, in the IPA case).",
+      "results_confidence": "high (Nielsen-cited sales); medium (views)",
+      "source": "IPA/Campaign; Nielsen",
+      "agency": "Publicis London + Edelman"
+    },
+    {
+      "id": "rsf_first_speech",
+      "brand": "Reporters Without Borders",
+      "year": "2024",
+      "one_line": "Revisits the first speeches of Putin, Erdogan, and Maduro to defend press freedom.",
+      "mechanism": "unexpected_authority",
+      "why": "The leaders' own early pro-freedom words indict them.",
+      "results": "Cannes Grand Prix for Good 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Innocean Berlin"
+    },
+    {
+      "id": "whatsapp_we_are_ayenda",
+      "brand": "WhatsApp",
+      "year": "2024",
+      "one_line": "Documents the Afghan Youth Women's football team's escape, aided by encrypted chat.",
+      "mechanism": "product_truth_social_good",
+      "why": "Shows encryption as a real-world lifeline.",
+      "results": "Cannes Entertainment Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Creative X + Modern Arts"
+    },
+    {
+      "id": "faz_brilliant_minds",
+      "brand": "Frankfurter Allgemeine Zeitung",
+      "year": "2024",
+      "one_line": "A portrait of Holocaust survivor Margot Friedlander for a 'read by brilliant minds' print series.",
+      "mechanism": "distinctive_asset_proof",
+      "why": "Craft + gravitas on Holocaust Remembrance Day.",
+      "results": "Cannes Industry Craft Grand Prix 2024.",
+      "results_confidence": "high (award)",
+      "source": "Cannes",
+      "agency": "Scholz & Friends Berlin"
+    }
+  ],
+  "do_not_state_as_fact": [
+    {
+      "campaign": "volvo_epic_split",
+      "issue": "'$170M revenue' conflates ~EUR126M/$172.6M earned-media VALUE with revenue. Use the earned-media framing."
+    },
+    {
+      "campaign": "gillette_we_believe",
+      "issue": "Business impact is genuinely disputed; the $8B P&G Gillette writedown is not clearly attributable to the ad."
+    },
+    {
+      "campaign": "got_milk",
+      "issue": "Did NOT reverse the long-term national per-capita milk decline; only the short-term California figure is solid."
+    },
+    {
+      "campaign": "corona_plastic_fishing",
+      "issue": "Environmental efficacy is questioned; tonnage/impression figures are PR-reported."
+    },
+    {
+      "campaign": "heinz_seemingly_ranch",
+      "issue": "The 52,987% ROI (and $160M earned media) is a self-reported agency calculation - do not state as fact."
+    },
+    {
+      "campaign": "patagonia_dont_buy",
+      "issue": "The famous '+30% sales' has no primary source; the causal claim is oversimplified."
+    },
+    {
+      "campaign": "dumb_ways_to_die",
+      "issue": "The ~20% accident-reduction claim is contested; causality was questioned by Effie juries."
+    },
+    {
+      "campaign": "whopper_detour",
+      "issue": "ROI is source-dependent: 37:1 (press, 'per the chain') vs 27:1 (brand's own case). Use the range."
+    },
+    {
+      "campaign": "ihop_ihob",
+      "issue": "Burger-sales-quadrupled is from the earnings call (solid), but some Foursquare foot-traffic data showed flat traffic."
+    },
+    {
+      "campaign": "scrub_daddy",
+      "issue": "Revenue is Reuters-sourced, but the causal link to TikTok is not established."
+    },
+    {
+      "campaign": "poppi",
+      "issue": "Acquisition price is solid; its 2025 Super Bowl vending-machine stunt drew 'out of touch' backlash."
+    },
+    {
+      "campaign": "mastercard_true_name",
+      "issue": "Impression/lift stats are unverified; rely on the awards."
+    },
+    {
+      "general": "agency_award_metrics",
+      "issue": "Any views/impressions/ROI drawn from a winning agency's award submission is self-reported and not independently audited - present as 'reported' not 'proven'. Award WINS and acquisitions/financial filings are verifiable."
+    }
+  ]
+}
