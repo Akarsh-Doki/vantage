@@ -16,6 +16,10 @@ from tavily import TavilyClient
 
 logger = logging.getLogger(__name__)
 
+# Bound every search so a hung request can't stall a research node —
+# consistent with the 10s timeout on the Go fetcher call (safe_fetch).
+_TIMEOUT_SECONDS = 10.0
+
 # Rule 7: the backend is a long-lived process — the cache must not grow forever.
 _CACHE_MAX_ENTRIES = 1024
 _cache: dict[tuple[str, int], list[dict[str, str]]] = {}
@@ -43,7 +47,9 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
 
     try:
         client = TavilyClient(api_key=api_key)
-        response: dict[str, Any] = client.search(query, max_results=max_results)
+        response: dict[str, Any] = client.search(
+            query, max_results=max_results, timeout=_TIMEOUT_SECONDS
+        )
         results: list[dict[str, str]] = [
             {
                 "title": item.get("title") or "",

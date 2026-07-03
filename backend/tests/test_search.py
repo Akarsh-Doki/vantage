@@ -45,7 +45,9 @@ def test_search_web_returns_title_url_content(fake_tavily: MagicMock) -> None:
             "content": "A rundown of the anvil market and its main players.",
         },
     ]
-    fake_tavily.search.assert_called_once_with("acme competitors", max_results=2)
+    fake_tavily.search.assert_called_once_with(
+        "acme competitors", max_results=2, timeout=search._TIMEOUT_SECONDS
+    )
 
 
 def test_identical_search_is_served_from_cache(fake_tavily: MagicMock) -> None:
