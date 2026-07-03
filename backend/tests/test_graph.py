@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from app import graph
-from app.llm import HAIKU
+from app.llm import HAIKU, ModelResponse
 from app.state import State
 
 SEARCH_RESULTS = [
@@ -108,23 +108,29 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
     """Mock every external call the graph makes, recording them for assertions."""
     calls = PipelineCalls()
 
-    def fake_call_model(model: str, system: str, user: str, max_tokens: int = 1024) -> str:
+    def fake_call_model(
+        model: str, system: str, user: str, max_tokens: int = 1024
+    ) -> ModelResponse:
         calls.models.append(
             {"model": model, "system": system, "user": user, "max_tokens": max_tokens}
         )
         if "campaign reviewer" in system:
             if calls.reviewer_responses:
-                return calls.reviewer_responses.pop(0)
-            n = len(json.loads(user)["concepts"])
-            if calls.reviewer_reject_all:
-                return json.dumps([_eval(overrides={"ownable": 1}) for _ in range(n)])
-            return json.dumps([_eval() for _ in range(n)])
-        if "creative director" in system:
-            if calls.creative_responses:
-                return calls.creative_responses.pop(0)
-            return CONCEPTS_JSON
-        # Findings text: carries the trend the mocked concepts claim to use.
-        return "Short-form POV video is surging with local shops right now."
+                text = calls.reviewer_responses.pop(0)
+            elif calls.reviewer_reject_all:
+                n = len(json.loads(user)["concepts"])
+                text = json.dumps([_eval(overrides={"ownable": 1}) for _ in range(n)])
+            else:
+                n = len(json.loads(user)["concepts"])
+                text = json.dumps([_eval() for _ in range(n)])
+        elif "creative director" in system:
+            text = (
+                calls.creative_responses.pop(0) if calls.creative_responses else CONCEPTS_JSON
+            )
+        else:
+            # Findings text: carries the trend the mocked concepts claim to use.
+            text = "Short-form POV video is surging with local shops right now."
+        return ModelResponse(text=text, tokens_in=100, tokens_out=50)
 
     def fake_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
         calls.searches.append({"query": query, "max_results": max_results})

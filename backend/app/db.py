@@ -1,0 +1,212 @@
+"""Persistence over Supabase PostgREST.
+
+Every function takes the authenticated user_id and scopes its query with it
+explicitly — RLS is the backstop, never the only guard (rules 3, 8). The
+PostgREST client builds parameterized requests; no SQL strings are ever
+assembled here.
+"""
+
+import os
+from datetime import UTC, datetime
+from functools import lru_cache
+from typing import Any, cast
+
+from supabase import Client, create_client
+
+
+@lru_cache(maxsize=1)
+def _client() -> Client:
+    # Lazy: importing this module must not require env (matches the tools).
+    return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+
+
+def now_iso() -> str:
+    return datetime.now(tz=UTC).isoformat()
+
+
+def _rows(data: Any) -> list[dict[str, Any]]:
+    return cast("list[dict[str, Any]]", data or [])
+
+
+def create_project(user_id: str, business: dict[str, Any]) -> str:
+    rows = _rows(
+        _client()
+        .table("projects")
+        .insert(
+            {
+                "user_id": user_id,
+                "business_name": business["name"],
+                "business_description": business.get("description", ""),
+                "website_url": business["website_url"],
+                "competitor_urls": business.get("competitor_urls", []),
+            }
+        )
+        .execute()
+        .data
+    )
+    return str(rows[0]["id"])
+
+
+def create_run(user_id: str, project_id: str, kind: str) -> str:
+    rows = _rows(
+        _client()
+        .table("report_runs")
+        .insert(
+            {"user_id": user_id, "project_id": project_id, "kind": kind, "status": "queued"}
+        )
+        .execute()
+        .data
+    )
+    return str(rows[0]["id"])
+
+
+def update_run(run_id: str, user_id: str, fields: dict[str, Any]) -> None:
+    (
+        _client()
+        .table("report_runs")
+        .update(fields)
+        .eq("id", run_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+
+def get_run(run_id: str, user_id: str) -> dict[str, Any] | None:
+    rows = _rows(
+        _client()
+        .table("report_runs")
+        .select("*")
+        .eq("id", run_id)
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+    return rows[0] if rows else None
+
+
+def list_runs(user_id: str) -> list[dict[str, Any]]:
+    return _rows(
+        _client()
+        .table("report_runs")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+
+
+def insert_report(
+    user_id: str, project_id: str, run_id: str, kind: str, result: dict[str, Any]
+) -> None:
+    (
+        _client()
+        .table("reports")
+        .insert(
+            {
+                "user_id": user_id,
+                "project_id": project_id,
+                "run_id": run_id,
+                "kind": kind,
+                "brief": result.get("brief"),
+                "strategy": result.get("strategy"),
+                "creative": result.get("concepts"),
+                "sources": result.get("sources"),
+            }
+        )
+        .execute()
+    )
+
+
+def get_report(run_id: str, user_id: str) -> dict[str, Any] | None:
+    """The run's report, excluding soft-deleted rows."""
+    rows = _rows(
+        _client()
+        .table("reports")
+        .select("*")
+        .eq("run_id", run_id)
+        .eq("user_id", user_id)
+        .is_("deleted_at", "null")
+        .execute()
+        .data
+    )
+    return rows[0] if rows else None
+
+
+def deleted_report_run_ids(user_id: str) -> set[str]:
+    rows = _rows(
+        _client()
+        .table("reports")
+        .select("run_id")
+        .eq("user_id", user_id)
+        .not_.is_("deleted_at", "null")
+        .execute()
+        .data
+    )
+    return {str(r["run_id"]) for r in rows}
+
+
+def soft_delete_report(run_id: str, user_id: str) -> bool:
+    rows = _rows(
+        _client()
+        .table("reports")
+        .update({"deleted_at": now_iso()})
+        .eq("run_id", run_id)
+        .eq("user_id", user_id)
+        .is_("deleted_at", "null")
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
+def claim_free_sample(user_id: str) -> bool:
+    """Atomically flip the one-free-sample flag; False if already used."""
+    rows = _rows(
+        _client()
+        .table("profiles")
+        .update({"free_sample_used": True})
+        .eq("id", user_id)
+        .eq("free_sample_used", False)
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
+def release_free_sample(user_id: str) -> None:
+    """Refund the sample quota (used when a sample run fails outright)."""
+    (
+        _client()
+        .table("profiles")
+        .update({"free_sample_used": False})
+        .eq("id", user_id)
+        .execute()
+    )
+
+
+def insert_usage(
+    user_id: str,
+    run_id: str | None,
+    kind: str,
+    model: str | None,
+    tokens_in: int,
+    tokens_out: int,
+    cost_cents: int,
+) -> None:
+    (
+        _client()
+        .table("usage")
+        .insert(
+            {
+                "user_id": user_id,
+                "run_id": run_id,
+                "kind": kind,
+                "model": model,
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "cost_cents": cost_cents,
+            }
+        )
+        .execute()
+    )

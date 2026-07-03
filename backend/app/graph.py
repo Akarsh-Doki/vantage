@@ -278,7 +278,7 @@ def _distill(focus: str, content: str, url: str, mode: str) -> str | None:
                 sort_keys=True,
             ),
             max_tokens=_FINDING_TOKENS[mode],
-        )
+        ).text
     except ModelCallError:
         logger.warning("distill failed for %s; falling back to the raw snippet", url)
         return None
@@ -347,7 +347,7 @@ def planner(state: State) -> dict[str, Any]:
         system=_PLANNER_SYSTEM,
         user=json.dumps(state["business"], sort_keys=True),
         max_tokens=400,
-    )
+    ).text
     return {"plan": {"text": text}, "step_count": 0}
 
 
@@ -360,7 +360,7 @@ def synthesis(state: State) -> dict[str, Any]:
         system=_SYNTHESIS_SYSTEM,
         user=json.dumps({"plan": state["plan"], "findings": findings}, sort_keys=True),
         max_tokens=_SYNTHESIS_TOKENS[mode],
-    )
+    ).text
     source_urls = sorted({f["source_url"] for f in findings})
     return {"brief": {"text": text, "source_urls": source_urls}}
 
@@ -372,7 +372,7 @@ def strategy(state: State) -> dict[str, Any]:
         system=_STRATEGY_SYSTEM,
         user=json.dumps({"business": state["business"], "brief": state["brief"]}, sort_keys=True),
         max_tokens=_STRATEGY_TOKENS[mode],
-    )
+    ).text
     return {"strategy": {"text": text}}
 
 
@@ -461,7 +461,7 @@ def creative_director(state: State) -> dict[str, Any]:
             sort_keys=True,
         ),
         max_tokens=_CREATIVE_TOKENS[mode],
-    )
+    ).text
     concepts = kept + _parse_concepts(text, wanted)
     return {"concepts": concepts, "step_count": state.get("step_count", 0) + 1}
 
@@ -479,7 +479,7 @@ def reviewer(state: State) -> dict[str, Any]:
                 sort_keys=True,
             ),
             max_tokens=_REVIEWER_TOKENS,
-        )
+        ).text
     except ModelCallError:
         # The review is a quality gate, not a data source — degrade, don't kill
         # the run (rule 6). An unreviewable run still reaches the human gate.

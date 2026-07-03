@@ -14,6 +14,8 @@ from typing import Any
 
 from tavily import TavilyClient
 
+from app.usage_meter import record_usage
+
 logger = logging.getLogger(__name__)
 
 # Bound every search so a hung request can't stall a research node —
@@ -61,6 +63,7 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
     except Exception:
         logger.exception("Tavily search failed for query %r — returning no results", query)
         return []
+    record_usage("search", model="tavily")  # cache hits above never re-charge
 
     if len(_cache) >= _CACHE_MAX_ENTRIES:
         _cache.pop(next(iter(_cache)))  # drop the oldest entry; recency doesn't matter here

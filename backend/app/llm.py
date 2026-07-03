@@ -11,9 +11,13 @@ that could corrupt a report (rule 10).
 import asyncio
 import logging
 import os
+from dataclasses import dataclass
 from functools import lru_cache
+from typing import Any
 
 from anthropic import Anthropic, APIError, APIStatusError
+
+from app.usage_meter import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +34,32 @@ class ModelCallError(Exception):
     state (fail the step or degrade gracefully), never as empty output."""
 
 
+@dataclass(frozen=True)
+class ModelResponse:
+    """A model reply plus its token counts (for the usage ledger)."""
+
+    text: str
+    tokens_in: int
+    tokens_out: int
+
+
+def _count(value: Any) -> int:
+    # Token counts come from a third-party response object (or a mock in
+    # tests); anything that isn't a real int counts as 0.
+    return value if isinstance(value, int) else 0
+
+
 @lru_cache(maxsize=1)
 def _get_client() -> Anthropic:
     # Created lazily: importing this module must not require env (see fetch.py).
     return Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], max_retries=_MAX_RETRIES)
 
 
-def call_model(model: str, system: str, user: str, max_tokens: int = 1024) -> str:
-    """Call the model and return its text. Caches the system prompt, caps output.
+def call_model(model: str, system: str, user: str, max_tokens: int = 1024) -> ModelResponse:
+    """Call the model; returns the text plus input/output token counts.
 
-    Raises ModelCallError when the call fails after the SDK's bounded retries.
+    Caches the system prompt, caps output. Raises ModelCallError when the
+    call fails after the SDK's bounded retries.
     """
     try:
         resp = _get_client().messages.create(
@@ -54,10 +74,19 @@ def call_model(model: str, system: str, user: str, max_tokens: int = 1024) -> st
     except APIError as e:
         logger.exception("model call failed (model=%s): connection/API error", model)
         raise ModelCallError("model call failed: connection or API error") from e
-    return "".join(b.text for b in resp.content if b.type == "text")
+    usage = getattr(resp, "usage", None)
+    tokens_in = _count(getattr(usage, "input_tokens", 0))
+    tokens_out = _count(getattr(usage, "output_tokens", 0))
+    # Cost ledger; no-op outside a metered run (the graph executor installs
+    # the recorder that writes usage rows and accumulates run cost).
+    record_usage("model", model=model, tokens_in=tokens_in, tokens_out=tokens_out)
+    text = "".join(b.text for b in resp.content if b.type == "text")
+    return ModelResponse(text=text, tokens_in=tokens_in, tokens_out=tokens_out)
 
 
-async def call_model_async(model: str, system: str, user: str, max_tokens: int = 1024) -> str:
+async def call_model_async(
+    model: str, system: str, user: str, max_tokens: int = 1024
+) -> ModelResponse:
     """call_model for async agent nodes — runs in a worker thread so the
     event loop never blocks and parallel research nodes stay parallel."""
     return await asyncio.to_thread(call_model, model, system, user, max_tokens)

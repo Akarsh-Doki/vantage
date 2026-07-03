@@ -7,12 +7,15 @@ import os
 
 import httpx
 
+from app.usage_meter import record_usage
+
 
 def safe_fetch(url: str) -> str:
     fetcher_url = os.environ["FETCHER_URL"]  # read at call time: importing must not require env
     r = httpx.post(f"{fetcher_url}/fetch", json={"url": url}, timeout=10.0)
     r.raise_for_status()
     content: str = r.json()["content"]
+    record_usage("fetch")  # cost ledger; no-op outside a metered run
     return content
 
 
