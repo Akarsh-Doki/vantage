@@ -57,6 +57,11 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
 
+[[tool.mypy.overrides]]
+module = "tavily.*"                 # ships no py.typed marker
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["."]                  # tests import the app package by absolute path
