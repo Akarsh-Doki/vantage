@@ -11,7 +11,6 @@ short human-readable error — never left hanging (rule 6).
 """
 
 import logging
-import uuid
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -19,6 +18,7 @@ from langgraph.types import Command
 
 from app import db
 from app.graph import build_graph
+from app.limits import warn_if_expensive
 from app.usage_meter import usage_recording
 
 logger = logging.getLogger(__name__)
@@ -136,11 +136,13 @@ def execute_run(
                     step = _NODE_STEPS.get(node)
                     if step:
                         db.update_run(run_id, user_id, {"current_step": step})
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
         if interrupted:
             db.update_run(
                 run_id,
                 user_id,
-                {"status": "awaiting_review", "current_step": "awaiting_review", **meter.totals()},
+                {"status": "awaiting_review", "current_step": "awaiting_review", **totals},
             )
             return
         result = dict(_graph().get_state(_config(run_id)).values.get("result") or {})
@@ -152,11 +154,13 @@ def execute_run(
                 "status": "completed",
                 "current_step": "done",
                 "finished_at": db.now_iso(),
-                **meter.totals(),
+                **totals,
             },
         )
     except Exception as exc:
         logger.exception("run %s failed", run_id)
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
         db.update_run(
             run_id,
             user_id,
@@ -164,7 +168,7 @@ def execute_run(
                 "status": "failed",
                 "error": _public_error(exc),
                 "finished_at": db.now_iso(),
-                **meter.totals(),
+                **totals,
             },
         )
 
@@ -178,6 +182,8 @@ def resume_run(
         with usage_recording(meter):
             final = _graph().invoke(Command(resume=decision), _config(run_id))
         result = dict(final.get("result") or {})
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
         db.insert_report(user_id, project_id, run_id, kind, result)
         db.update_run(
             run_id,
@@ -186,11 +192,13 @@ def resume_run(
                 "status": "completed",
                 "current_step": "done",
                 "finished_at": db.now_iso(),
-                **meter.totals(),
+                **totals,
             },
         )
     except Exception as exc:
         logger.exception("resume of run %s failed", run_id)
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
         db.update_run(
             run_id,
             user_id,
@@ -198,15 +206,42 @@ def resume_run(
                 "status": "failed",
                 "error": _public_error(exc),
                 "finished_at": db.now_iso(),
-                **meter.totals(),
+                **totals,
             },
         )
 
 
-def run_sample(user_id: str, business: dict[str, Any]) -> dict[str, Any]:
-    """Run the cheap preview synchronously; nothing is saved except usage."""
-    meter = _RunMeter(user_id, run_id=None)
-    thread_id = f"sample-{uuid.uuid4().hex}"
-    with usage_recording(meter):
-        final = _graph().invoke(_initial_state(business, "sample"), _config(thread_id))
-    return dict(final.get("result") or {})
+def run_sample(run_id: str, user_id: str, business: dict[str, Any]) -> dict[str, Any]:
+    """Run the cheap preview and return its result. The run row is persisted
+    (so samples are countable for the global cap and auditable), but no report
+    deliverable is saved — samples are preview-only. Marks the run failed and
+    re-raises on error so the caller can refund the free-sample quota."""
+    meter = _RunMeter(user_id, run_id)
+    try:
+        db.update_run(run_id, user_id, {"status": "running", "started_at": db.now_iso()})
+        with usage_recording(meter):
+            final = _graph().invoke(_initial_state(business, "sample"), _config(run_id))
+        result = dict(final.get("result") or {})
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
+        db.update_run(
+            run_id,
+            user_id,
+            {"status": "completed", "current_step": "done", "finished_at": db.now_iso(), **totals},
+        )
+    except Exception as exc:
+        logger.exception("sample run %s failed", run_id)
+        totals = meter.totals()
+        warn_if_expensive(run_id, totals["cost_cents"])
+        db.update_run(
+            run_id,
+            user_id,
+            {
+                "status": "failed",
+                "error": _public_error(exc),
+                "finished_at": db.now_iso(),
+                **totals,
+            },
+        )
+        raise
+    return result

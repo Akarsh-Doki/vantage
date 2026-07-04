@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 from langgraph.types import Command
 
-from app import db, runner
+from app import db, limits, runner
 from app.main import create_app
 
 SECRET = "test-jwt-secret-0123456789abcdef0123456789abcdef"  # ≥32 bytes for HS256
@@ -168,6 +168,18 @@ class FakeStore:
             return True
         return False
 
+    def get_profile(self, user_id: str) -> dict[str, Any] | None:
+        profile = self.profiles.get(user_id)
+        return dict(profile) if profile else None
+
+    def count_sample_runs_today(self) -> int:
+        return sum(1 for r in self.runs.values() if r["kind"] == "sample")
+
+    def count_user_runs_today(self, user_id: str) -> int:
+        return sum(
+            1 for r in self.runs.values() if r["user_id"] == user_id and r["kind"] == "full"
+        )
+
     def claim_free_sample(self, user_id: str) -> bool:
         profile = self.profiles.get(user_id)
         if profile and not profile["free_sample_used"]:
@@ -211,6 +223,9 @@ _DB_API = (
     "get_report",
     "deleted_report_run_ids",
     "soft_delete_report",
+    "get_profile",
+    "count_sample_runs_today",
+    "count_user_runs_today",
     "claim_free_sample",
     "release_free_sample",
     "insert_usage",
@@ -222,9 +237,14 @@ def api(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, FakeStore, FakeGra
     monkeypatch.setenv("SUPABASE_JWT_SECRET", SECRET)
     monkeypatch.delenv("SUPABASE_JWKS_URL", raising=False)
     monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    # Loose rate limits by default so ordinary tests never trip 429; the
+    # dedicated 429 test tightens them. Reset counters for isolation.
+    monkeypatch.setenv("RATE_LIMIT_PER_IP", "100000/minute")
+    monkeypatch.setenv("RATE_LIMIT_PER_USER", "100000/minute")
+    limits.limiter.reset()
     store = FakeStore()
-    store.profiles[USER_A] = {"id": USER_A, "free_sample_used": False}
-    store.profiles[USER_B] = {"id": USER_B, "free_sample_used": False}
+    store.profiles[USER_A] = {"id": USER_A, "plan": "paid", "free_sample_used": False}
+    store.profiles[USER_B] = {"id": USER_B, "plan": "paid", "free_sample_used": False}
     for name in _DB_API:
         monkeypatch.setattr(db, name, getattr(store, name))
     fake_graph = FakeGraph()
@@ -385,3 +405,99 @@ def test_soft_delete_hides_report_from_reads(
     listing = client.get("/reports", headers=_auth(USER_A)).json()
     assert listing["runs"] == []
     assert client.delete(f"/reports/{run_id}", headers=_auth(USER_A)).status_code == 404
+
+
+def test_over_limit_caller_gets_429(
+    api: tuple[TestClient, FakeStore, FakeGraph], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _, _ = api
+    monkeypatch.setenv("RATE_LIMIT_PER_IP", "2/minute")
+    limits.limiter.reset()
+
+    codes = [
+        client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code for _ in range(3)
+    ]
+
+    assert codes == [202, 202, 429]
+    body = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()
+    assert "Too many requests" in body["detail"]  # clear message, no internals
+
+
+def test_global_sample_cap_returns_friendly_capacity(
+    api: tuple[TestClient, FakeStore, FakeGraph], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, store, _ = api
+    monkeypatch.setenv("DAILY_SAMPLE_CAP", "1")
+
+    first = client.post("/sample", json=BODY, headers=_auth(USER_A))
+    assert first.status_code == 200  # fills the single daily slot
+
+    # A different user hits the account-level cap: friendly 503, not a 500,
+    # and their one free sample is NOT consumed.
+    second = client.post("/sample", json=BODY, headers=_auth(USER_B))
+    assert second.status_code == 503
+    assert "capacity reached" in second.json()["detail"].lower()
+    assert store.profiles[USER_B]["free_sample_used"] is False
+
+
+def test_free_plan_cannot_start_full_run(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    store.profiles[USER_A]["plan"] = "free"
+
+    response = client.post("/reports", json=BODY, headers=_auth(USER_A))
+
+    assert response.status_code == 402
+    assert store.runs == {}  # no run started
+
+
+def test_paid_daily_run_limit_returns_429(
+    api: tuple[TestClient, FakeStore, FakeGraph], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _, _ = api
+    monkeypatch.setenv("PAID_DAILY_RUN_LIMIT", "1")
+
+    assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
+    # The paid user's second run today exceeds their quota.
+    over = client.post("/reports", json=BODY, headers=_auth(USER_A))
+    assert over.status_code == 429
+    assert "daily run limit" in over.json()["detail"].lower()
+
+
+def test_security_headers_present_on_responses(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, _, _ = api
+    headers = client.get("/health").headers
+
+    assert headers["x-content-type-options"] == "nosniff"
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["referrer-policy"] == "no-referrer"
+    assert "max-age=" in headers["strict-transport-security"]
+    assert "default-src 'none'" in headers["content-security-policy"]
+
+
+def test_cors_rejects_disallowed_origin(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, _, _ = api
+
+    allowed = client.options(
+        "/reports",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+    denied = client.options(
+        "/reports",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    # Disallowed origin is never echoed back — the browser blocks the request.
+    assert denied.headers.get("access-control-allow-origin") != "https://evil.example"

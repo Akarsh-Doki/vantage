@@ -23,7 +23,10 @@ def _jwks_client(url: str) -> jwt.PyJWKClient:
     return jwt.PyJWKClient(url)
 
 
-def _decode(token: str) -> dict[str, Any]:
+def decode_token(token: str) -> dict[str, Any]:
+    """Verify a Supabase JWT (signature, expiry, audience) and return its
+    claims. Raises jwt.PyJWTError on any failure. Also used by the rate
+    limiter to key buckets by user."""
     jwks_url = os.environ.get("SUPABASE_JWKS_URL")
     if jwks_url:  # project uses asymmetric signing keys
         key = _jwks_client(jwks_url).get_signing_key_from_jwt(token).key
@@ -46,7 +49,7 @@ def get_current_user(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise unauthorized
     try:
-        claims = _decode(credentials.credentials)
+        claims = decode_token(credentials.credentials)
     except jwt.PyJWTError:
         raise unauthorized from None
     sub = claims.get("sub")

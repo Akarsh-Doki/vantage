@@ -41,8 +41,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests: assert is the point, and hardcoded dummy creds/URLs are expected.
-"tests/**" = ["S101", "S105", "S106", "PLR2004"]
+# Tests: assert is the point, hardcoded dummy creds/URLs are expected, and test
+# doubles legitimately carry signature-matching-but-unused args and lambdas.
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "ARG001", "ARG002", "ARG005", "PLW0108"]
 # CLI scripts: print IS the UI, and heavy deps (torch) import lazily in main().
 "scripts/**" = ["T201", "PLC0415"]
 

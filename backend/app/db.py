@@ -7,10 +7,11 @@ assembled here.
 """
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from functools import lru_cache
 from typing import Any, cast
 
+from postgrest.types import CountMethod
 from supabase import Client, create_client
 
 
@@ -22,6 +23,11 @@ def _client() -> Client:
 
 def now_iso() -> str:
     return datetime.now(tz=UTC).isoformat()
+
+
+def _today_start_iso() -> str:
+    """Midnight UTC today — the lower bound for daily spend-cap counts."""
+    return datetime.combine(datetime.now(tz=UTC).date(), time.min, tzinfo=UTC).isoformat()
 
 
 def _rows(data: Any) -> list[dict[str, Any]]:
@@ -80,6 +86,42 @@ def get_run(run_id: str, user_id: str) -> dict[str, Any] | None:
         .eq("user_id", user_id)
         .execute()
         .data
+    )
+    return rows[0] if rows else None
+
+
+def count_sample_runs_today() -> int:
+    """GLOBAL count of sample runs started today — the account-level spend
+    guard. Not user-scoped on purpose: it caps total free samples across all
+    users so a bot or traffic spike can't drain Anthropic credits."""
+    response = (
+        _client()
+        .table("report_runs")
+        .select("id", count=CountMethod.exact)
+        .eq("kind", "sample")
+        .gte("created_at", _today_start_iso())
+        .execute()
+    )
+    return response.count or 0
+
+
+def count_user_runs_today(user_id: str) -> int:
+    """This user's full runs started today (for the paid daily run limit)."""
+    response = (
+        _client()
+        .table("report_runs")
+        .select("id", count=CountMethod.exact)
+        .eq("user_id", user_id)
+        .eq("kind", "full")
+        .gte("created_at", _today_start_iso())
+        .execute()
+    )
+    return response.count or 0
+
+
+def get_profile(user_id: str) -> dict[str, Any] | None:
+    rows = _rows(
+        _client().table("profiles").select("*").eq("id", user_id).execute().data
     )
     return rows[0] if rows else None
 

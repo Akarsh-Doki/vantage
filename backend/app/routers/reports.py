@@ -3,10 +3,11 @@ every query is owner-scoped in db.py — nothing here trusts client-sent ids."""
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
-from app import db, runner
+from app import config, db, limits, runner
 from app.auth import UserId
+from app.limits import limiter
 from app.schemas import (
     ApproveRequest,
     DeleteResponse,
@@ -22,13 +23,34 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.post("", response_model=RunCreated, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(config.rate_limit_per_ip, key_func=limits.ip_key)
+@limiter.limit(config.rate_limit_per_user, key_func=limits.user_key)
 def create_report(
-    request: ReportRequest, user_id: UserId, background: BackgroundTasks
+    request: Request,  # noqa: ARG001 — required by slowapi; the body is `report`
+    report: ReportRequest,
+    user_id: UserId,
+    background: BackgroundTasks,
 ) -> RunCreated:
-    business = request.to_business()
+    # Per-user durable quota: full runs are paid-only and bounded per day.
+    profile = db.get_profile(user_id)
+    allowed, reason = limits.full_run_decision(
+        (profile or {}).get("plan"), db.count_user_runs_today(user_id)
+    )
+    if not allowed:
+        code = (
+            status.HTTP_429_TOO_MANY_REQUESTS
+            if (profile or {}).get("plan") == "paid"
+            else status.HTTP_402_PAYMENT_REQUIRED
+        )
+        raise HTTPException(status_code=code, detail=reason)
+
+    business = report.to_business()
     project_id = db.create_project(user_id, business)
     run_id = db.create_run(user_id, project_id, kind="full")
-    background.add_task(runner.execute_run, run_id, project_id, user_id, business, "full")
+    # Bound concurrent graph runs with the global slot (rule 7).
+    background.add_task(
+        limits.run_with_slot, runner.execute_run, run_id, project_id, user_id, business, "full"
+    )
     return RunCreated(run_id=run_id, status="queued")
 
 
