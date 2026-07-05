@@ -53,9 +53,7 @@ def create_app() -> FastAPI:
     async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
         # Full detail goes to the (redacted) logs; clients get a generic
         # message — never a stack trace, never internals (rule 6).
-        logger.exception(
-            "unhandled error on %s %s", request.method, request.url.path, exc_info=exc
-        )
+        logger.exception("unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     return app

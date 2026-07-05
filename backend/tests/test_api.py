@@ -4,6 +4,7 @@ JWTs are real HS256 tokens signed with a test secret, so the actual
 verification path (signature, expiry, audience, sub) is exercised.
 """
 
+import logging
 import time
 import uuid
 from collections.abc import Iterator
@@ -176,9 +177,7 @@ class FakeStore:
         return sum(1 for r in self.runs.values() if r["kind"] == "sample")
 
     def count_user_runs_today(self, user_id: str) -> int:
-        return sum(
-            1 for r in self.runs.values() if r["user_id"] == user_id and r["kind"] == "full"
-        )
+        return sum(1 for r in self.runs.values() if r["user_id"] == user_id and r["kind"] == "full")
 
     def claim_free_sample(self, user_id: str) -> bool:
         profile = self.profiles.get(user_id)
@@ -389,6 +388,18 @@ def test_cost_cents_uses_model_rates() -> None:
     assert runner._cost_cents("claude-sonnet-5", 2_000_000, 0) == 600.0
     assert runner._cost_cents("unknown-model", 1_000_000, 0) == 0.0
     assert runner._cost_cents(None, 5, 5) == 0.0
+
+
+def test_tavily_priced_at_zero_without_warning(caplog: pytest.LogCaptureFixture) -> None:
+    # The free-tier search tool is an explicit $0 entry, not the unpriced
+    # fallback — so it records zero cost without a per-call warning.
+    with caplog.at_level(logging.WARNING):
+        assert runner._cost_cents("tavily", 0, 0) == 0.0
+    assert "no price configured" not in caplog.text
+    # A genuinely-unknown model still warns (the fallback is intact).
+    with caplog.at_level(logging.WARNING):
+        runner._cost_cents("mystery-model", 1000, 0)
+    assert "no price configured" in caplog.text
 
 
 def test_soft_delete_hides_report_from_reads(

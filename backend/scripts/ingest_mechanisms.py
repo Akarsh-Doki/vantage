@@ -21,9 +21,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-DEFAULT_PATH = (
-    Path(__file__).resolve().parents[1] / "data" / "vantage-creative-knowledge-base.json"
-)
+DEFAULT_PATH = Path(__file__).resolve().parents[1] / "data" / "vantage-creative-knowledge-base.json"
 
 # coca_cola_recycle_logo is a known leftover duplicate of coca_cola_recycle_me
 # (its own `why` field says so) — never ingest it.

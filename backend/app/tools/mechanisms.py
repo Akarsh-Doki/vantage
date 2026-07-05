@@ -78,14 +78,10 @@ def _score(mechanism: dict[str, Any], business_type: str, goal: str, budget: str
     return score
 
 
-def _pick_examples(
-    campaigns: list[dict[str, Any]], mechanism_id: str
-) -> list[dict[str, Any]]:
+def _pick_examples(campaigns: list[dict[str, Any]], mechanism_id: str) -> list[dict[str, Any]]:
     matching = [c for c in campaigns if c.get("mechanism") == mechanism_id]
     # Prefer campaigns whose curated confidence leads with "high"; stable otherwise.
-    matching.sort(
-        key=lambda c: not str(c.get("results_confidence", "")).lower().startswith("high")
-    )
+    matching.sort(key=lambda c: not str(c.get("results_confidence", "")).lower().startswith("high"))
     return matching[:_EXAMPLES_PER_MECHANISM]
 
 
@@ -120,12 +116,7 @@ def retrieve_mechanisms(
         ids = [m["id"] for _, m in top]
         campaigns = cast(
             "list[dict[str, Any]]",
-            _client()
-            .table("creative_campaigns")
-            .select("*")
-            .in_("mechanism", ids)
-            .execute()
-            .data
+            _client().table("creative_campaigns").select("*").in_("mechanism", ids).execute().data
             or [],
         )
     except Exception:

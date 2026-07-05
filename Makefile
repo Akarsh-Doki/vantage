@@ -2,7 +2,7 @@
 # single source of truth for green); lint/test are subsets of the same script.
 
 .PHONY: setup dev dev-backend dev-frontend dev-fetcher \
-        lint test test-backend test-frontend test-fetcher check
+        lint test test-backend test-frontend test-fetcher check eval
 
 setup:
 	./scripts/setup.sh
@@ -38,3 +38,10 @@ test-frontend:
 
 test-fetcher:
 	cd fetcher && go test ./...
+
+# --- evals ---------------------------------------------------------------
+# Quality eval of the agent pipeline (distinct from `test`, which is code
+# correctness). A bare `make eval` does a REAL run (prompts for confirmation
+# and spends money). Debug for free with:  make eval ARGS="--dry-run"
+eval:               ## run the pipeline quality eval (ARGS="--dry-run" for $0)
+	cd backend && .venv/bin/python -m evals.run_eval $(ARGS)

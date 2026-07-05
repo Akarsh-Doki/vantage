@@ -47,3 +47,9 @@ Thumbs.db
 *.log
 tmp/
 .cache/
+
+# ---- Eval run artifacts (keep the dir via .gitkeep, ignore reports) ----
+backend/evals/results/*.json
+
+# ---- Eval research cache (keep the dir via .gitkeep, ignore cached research) ----
+backend/evals/cache/*.json

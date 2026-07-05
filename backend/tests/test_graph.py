@@ -1,6 +1,7 @@
 """Tests for app.graph — model, search, fetch, and retrieval mocked (rule 9: $0)."""
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -54,6 +55,7 @@ MECHANISMS = [
         ],
     },
 ]
+
 
 def _concept(title: str, **overrides: str) -> dict[str, str]:
     base = {
@@ -124,9 +126,7 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
                 n = len(json.loads(user)["concepts"])
                 text = json.dumps([_eval() for _ in range(n)])
         elif "creative director" in system:
-            text = (
-                calls.creative_responses.pop(0) if calls.creative_responses else CONCEPTS_JSON
-            )
+            text = calls.creative_responses.pop(0) if calls.creative_responses else CONCEPTS_JSON
         else:
             # Findings text: carries the trend the mocked concepts claim to use.
             text = "Short-form POV video is surging with local shops right now."
@@ -220,11 +220,9 @@ def test_sample_mode_returns_preview_from_competitor_research_only(
 def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     pipeline: PipelineCalls,
 ) -> None:
-    # First review rejects one concept (fails ownable); the refill then passes.
-    first_review = [_eval(f"Concept {i}") for i in (1, 2, 3)]
-    first_review.append(
-        _eval("Concept 4", overrides={"ownable": 2}, notes="too generic for Acme")
-    )
+    # First review (3 concepts) rejects one (fails ownable); the refill passes.
+    first_review = [_eval("Concept 1"), _eval("Concept 2")]
+    first_review.append(_eval("Concept 3", overrides={"ownable": 2}, notes="too generic for Acme"))
     pipeline.reviewer_responses.append(json.dumps(first_review))
     g = graph.build_graph(MemorySaver())
     config = _config("t-full")
@@ -245,7 +243,7 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     assert "too generic for Acme" in creative_calls[1]["user"]
     assert '"kept_concepts"' in creative_calls[1]["user"]
     # Passing concepts were kept and every survivor carries its rubric score.
-    assert len(paused["concepts"]) == 4
+    assert len(paused["concepts"]) == 3
     assert all("score" in c and "rubric_scores" in c for c in paused["concepts"])
     assert paused["review"]["verdict"] == "strong"
     # The run is paused on the human_review interrupt, not finished.
@@ -263,7 +261,7 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     ]
 
 
-def test_review_loop_is_capped_even_if_always_weak(pipeline: PipelineCalls) -> None:
+def test_review_loop_caps_and_keeps_best_when_all_rejected(pipeline: PipelineCalls) -> None:
     pipeline.reviewer_reject_all = True  # every concept fails "ownable" forever
     g = graph.build_graph(MemorySaver())
 
@@ -272,8 +270,16 @@ def test_review_loop_is_capped_even_if_always_weak(pipeline: PipelineCalls) -> N
     creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
     assert len(creative_calls) == 1 + graph._MAX_REVIEW_LOOPS  # first pass + capped loops
     assert "__interrupt__" in paused  # still reaches the human gate instead of spinning
-    assert paused["concepts"] == []  # nothing survived the rubric
-    assert paused["review"]["verdict"] == "weak"
+    # Nothing passed the rubric, but rather than finalize with zero concepts the
+    # loop keeps the single best-scored rejected concept, flagged below the bar,
+    # retaining its score and the reviewer's notes.
+    assert len(paused["concepts"]) == 1
+    best = paused["concepts"][0]
+    assert best["below_bar"] is True
+    assert "score" in best
+    assert "review_reasons" in best
+    assert "review_notes" in best
+    assert paused["review"]["verdict"] == "below_bar"
     assert paused["review"]["rejected"]
 
 
@@ -285,9 +291,7 @@ def test_judge_applies_rubric_gates() -> None:
     assert score == 10.0
     assert reasons == []
 
-    score, reasons = graph._judge(
-        {"scores": dict.fromkeys(weights, 6), "red_flags_matched": []}
-    )
+    score, reasons = graph._judge({"scores": dict.fromkeys(weights, 6), "red_flags_matched": []})
     assert score == 6.0
     assert reasons == [f"weighted score 6.0/10 is below {graph._MIN_SCORE}"]
 
@@ -312,7 +316,7 @@ def test_unparseable_review_passes_concepts_through(pipeline: PipelineCalls) -> 
     creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
     assert len(creative_calls) == 1  # an infra failure must not trigger the loop
     assert paused["review"]["verdict"] == "error"
-    assert len(paused["concepts"]) == 4  # unscored pass-through to the human gate
+    assert len(paused["concepts"]) == 3  # unscored pass-through to the human gate
     assert "__interrupt__" in paused
 
 
@@ -325,9 +329,7 @@ def test_market_agent_researches_current_trends_dynamically(
 
     paused = g.invoke(_initial("full"), _config("t-trends"))
 
-    assert "anvil manufacturing marketing trends 2031" in [
-        s["query"] for s in pipeline.searches
-    ]
+    assert "anvil manufacturing marketing trends 2031" in [s["query"] for s in pipeline.searches]
     # Trend findings are cited like everything else.
     assert paused["research"]
     assert all(f["source_url"] for f in paused["research"])
@@ -368,7 +370,7 @@ def test_creative_director_fuses_mechanisms_with_live_research(
     assert '"research"' in creative_call["user"]
     assert '"mechanisms"' in creative_call["user"]
     assert "a two-person cafe did it with a phone" in creative_call["user"]  # small_biz_example
-    assert '"concepts_wanted": 4' in creative_call["user"]
+    assert '"concepts_wanted": 3' in creative_call["user"]
     # The static system block carries the playbook (loaded from the real file).
     assert "Founder-face first" in creative_call["system"]
 
@@ -423,11 +425,10 @@ def test_concepts_fuse_mechanism_with_trend_from_live_findings() -> None:
 def test_reviewer_rejects_planted_bad_concepts_then_loop_stops_at_cap(
     pipeline: PipelineCalls,
 ) -> None:
-    # Creative's first batch plants three rejects alongside one good concept.
+    # Creative's first batch is three concepts, each tripping a different reject.
     pipeline.creative_responses.append(
         json.dumps(
             [
-                _concept("Good local mystery hunt"),
                 _concept("Discount blast", execution="run a 20% off promo"),
                 _concept("Ghost claim", grounded_in=""),
                 _concept("National TV takeover", budget_fit="needs a national TV budget"),
@@ -438,7 +439,6 @@ def test_reviewer_rejects_planted_bad_concepts_then_loop_stops_at_cap(
     pipeline.reviewer_responses.append(
         json.dumps(
             [
-                _eval("Good local mystery hunt"),
                 _eval("Discount blast", flags=["discount-only ('run a 20% off promo')"]),
                 _eval(
                     "Ghost claim",
@@ -458,15 +458,17 @@ def test_reviewer_rejects_planted_bad_concepts_then_loop_stops_at_cap(
     creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
     # 1 first pass + exactly _MAX_REVIEW_LOOPS revision loops, then it stops.
     assert len(creative_calls) == 1 + graph._MAX_REVIEW_LOOPS
-    # The revision kept the good concept (asked for 3 replacements) and
-    # carried a distinct machine-computed reason for each planted reject.
+    # All three were rejected (kept nothing), so the revision asks for 3 fresh
+    # concepts and carries a distinct machine-computed reason for each reject.
     revision = creative_calls[1]["user"]
     assert '"concepts_wanted": 3' in revision
     assert "matches red flag: discount-only" in revision
     assert "is below 7.0" in revision  # the unsourced concept scored under the bar
     assert "not realistically executable by a small team on a small budget" in revision
     assert "__interrupt__" in paused  # capped loop still reaches the human gate
-    assert paused["review"]["verdict"] == "weak"
+    # Nothing ever passed, so the capped loop delivers the best below-bar concept.
+    assert paused["review"]["verdict"] == "below_bar"
+    assert len(paused["concepts"]) == 1
 
 
 @pytest.mark.usefixtures("pipeline")
@@ -536,3 +538,84 @@ def test_malicious_fetched_content_stays_data_and_output_shape_holds(
     for concept in paused["concepts"]:
         assert set(concept) >= {"title", "mechanism_id", "grounded_in", "execution", "budget_fit"}
         assert "PWNED" not in json.dumps(concept)
+
+
+def _one_concept() -> dict[str, str]:
+    return {
+        "title": "Founder anvil diary",
+        "mechanism_id": "mech_x",
+        "current_trend_used": "short-form POV video",
+        "grounded_in": "https://rival-a.example/pricing",
+        "execution": "founder films a 30s clip",
+        "why_ownable": "only this shop has the tradition",
+        "format": "vertical video",
+        "budget_fit": "phone, zero spend",
+    }
+
+
+def test_parse_concepts_handles_fenced_and_plain_json() -> None:
+    plain = json.dumps([_one_concept()])
+    fenced = f"```json\n{plain}\n```"  # the fence the model sometimes adds
+
+    for label, text in (("plain", plain), ("fenced", fenced)):
+        out = graph._parse_concepts(text, wanted=4)
+        assert len(out) == 1, label
+        assert out[0]["title"] == "Founder anvil diary", label
+        assert out[0]["mechanism_id"] == "mech_x", label
+
+
+def test_parse_concepts_makes_truncation_visible(caplog: pytest.LogCaptureFixture) -> None:
+    # An array opened but never closed (a too-low max_tokens cut it off).
+    truncated = '[{"title": "half a concept", "mechanism_id": "mech_'
+
+    with caplog.at_level(logging.WARNING):
+        out = graph._parse_concepts(truncated, wanted=4)
+
+    # Fallback contract preserved: one placeholder concept carrying the raw text.
+    assert len(out) == 1
+    assert out[0]["title"] == "(unparsed creative output)"
+    assert "half a concept" in out[0]["execution"]
+    # Truncation is logged (not silent), with size and the unclosed-array flag.
+    assert "looks_truncated=True" in caplog.text
+    assert f"chars={len(truncated)}" in caplog.text
+
+
+def test_parse_concepts_salvages_truncated_array() -> None:
+    # Two complete concepts, then an object cut off mid-string (no closing } or
+    # ]) — the classic max_tokens truncation.
+    truncated = (
+        "["
+        + json.dumps(_concept("One"))
+        + ", "
+        + json.dumps(_concept("Two"))
+        + ', {"title": "Three", "mechanism_id": "mech_'
+    )
+
+    out = graph._parse_concepts(truncated, wanted=5)
+
+    # The two complete concepts are salvaged; the incomplete third is dropped.
+    assert [c["title"] for c in out] == ["One", "Two"]
+    assert all(c["title"] != "(unparsed creative output)" for c in out)
+
+
+def test_parse_evaluations_salvages_truncated_array() -> None:
+    truncated = (
+        "["
+        + json.dumps(_eval("A"))
+        + ", "
+        + json.dumps(_eval("B"))
+        + ', {"title": "C", "scores": {"ownable": 9'  # incomplete (nested, unclosed)
+    )
+
+    out = graph._parse_evaluations(truncated)
+
+    assert out is not None
+    assert [e["title"] for e in out] == ["A", "B"]  # complete evals kept, incomplete dropped
+
+
+def test_parse_concepts_placeholder_only_when_nothing_salvageable() -> None:
+    # A single object cut off immediately — zero complete objects to recover.
+    out = graph._parse_concepts('[{"title": "half', wanted=3)
+
+    assert len(out) == 1
+    assert out[0]["title"] == "(unparsed creative output)"

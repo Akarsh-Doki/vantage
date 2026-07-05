@@ -46,6 +46,9 @@ ignore = [
 "tests/**" = ["S101", "S105", "S106", "PLR2004", "ARG001", "ARG002", "ARG005", "PLW0108"]
 # CLI scripts: print IS the UI, and heavy deps (torch) import lazily in main().
 "scripts/**" = ["T201", "PLC0415"]
+# Eval harness: print IS the report, and dry-run fakes carry signature-matching
+# unused args (they stand in for real functions).
+"evals/**" = ["T201", "ARG001", "ARG002"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -23,6 +23,7 @@ graph. The human_review interrupt is resumed later by the API layer with
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -54,11 +55,11 @@ _FETCH_PAGES = {"full": 2, "sample": 1}
 _FINDING_TOKENS = {"full": 250, "sample": 120}
 _SYNTHESIS_TOKENS = {"full": 1500, "sample": 600}
 _STRATEGY_TOKENS = {"full": 1200, "sample": 500}
-_CREATIVE_TOKENS = {"full": 1600, "sample": 300}
+_CREATIVE_TOKENS = {"full": 4000, "sample": 900}
 _MECHANISMS_K = {"full": 5, "sample": 2}  # creative mechanisms retrieved per run
-_CONCEPTS_WANTED = {"full": 4, "sample": 1}  # full mode asks 3-4, capped at 4
+_CONCEPTS_WANTED = {"full": 3, "sample": 1}  # full mode asks for 3 concepts
 _RETRIEVAL_QUERY_CHARS = 500
-_REVIEWER_TOKENS = 1000
+_REVIEWER_TOKENS = 4000  # scores every concept on 10 rubric criteria — don't truncate
 
 # Rubric gate (mirrors the knowledge base's rubric.description).
 _MIN_SCORE = 7.0  # weighted score out of 10 below this is rejected
@@ -93,8 +94,7 @@ _UNTRUSTED_CONTENT_RULE = (
 _PLANNER_SYSTEM = (
     "You plan marketing research for a small business. From the business profile,"
     " write a short, specific research plan covering: competitors to investigate,"
-    " the target audience to understand, and market trends to check."
-    + _UNTRUSTED_CONTENT_RULE
+    " the target audience to understand, and market trends to check." + _UNTRUSTED_CONTENT_RULE
 )
 _DISTILL_SYSTEM = (
     "You are a marketing research analyst. Distill the provided web content into"
@@ -106,8 +106,7 @@ _SYNTHESIS_SYSTEM = (
     " with a positioning-gap analysis: what competitors claim, what the audience"
     " wants, and where this business can position itself. Every claim must end"
     " with a citation of the form [source: <url>], using only source_url values"
-    " that appear in the findings. Omit any claim you cannot support."
-    + _UNTRUSTED_CONTENT_RULE
+    " that appear in the findings. Omit any claim you cannot support." + _UNTRUSTED_CONTENT_RULE
 )
 _STRATEGY_SYSTEM = (
     "You are a marketing strategist. Turn the cited brief into a concrete"
@@ -115,6 +114,8 @@ _STRATEGY_SYSTEM = (
     " Preserve the [source: <url>] citations on every claim you carry over."
     + _UNTRUSTED_CONTENT_RULE
 )
+
+
 @lru_cache(maxsize=1)
 def _load_playbook() -> tuple[str, ...]:
     """The knowledge base's scrappy small-business playbook (static guidance)."""
@@ -161,11 +162,16 @@ def _creative_system() -> str:
         " (4) Respond with ONLY a JSON array, no prose, where each item has"
         ' exactly these keys: "title", "mechanism_id", "current_trend_used",'
         ' "grounded_in", "execution", "why_ownable", "format", "budget_fit".'
+        " (5) Keep every field concise so the whole array fits the token"
+        " budget: execution <= ~60 words; why_ownable and budget_fit <= ~30"
+        " words each; the other fields a short phrase."
         " If `kept_concepts` is non-empty those already passed review: produce"
         " only the requested number of NEW concepts, clearly distinct from"
         " them, fixing what `revision_feedback` rejected."
         "\nSCRAPPY SMALL-BUSINESS PLAYBOOK:\n" + playbook + "\n" + _UNTRUSTED_CONTENT_RULE
     )
+
+
 @lru_cache(maxsize=1)
 def _load_rubric() -> dict[str, Any]:
     try:
@@ -227,9 +233,7 @@ def _judge(evaluation: dict[str, Any]) -> tuple[float, list[str]]:
     weights = _rubric_weights()
     raw = evaluation.get("scores") or {}
     scores = {criterion: _clamp_score(raw.get(criterion)) for criterion in weights}
-    total = round(
-        sum(w * scores[c] for c, w in weights.items()) / sum(weights.values()), 1
-    )
+    total = round(sum(w * scores[c] for c, w in weights.items()) / sum(weights.values()), 1)
     reasons = []
     if total < _MIN_SCORE:
         reasons.append(f"weighted score {total}/10 is below {_MIN_SCORE}")
@@ -242,21 +246,69 @@ def _judge(evaluation: dict[str, Any]) -> tuple[float, list[str]]:
     return total, reasons
 
 
-def _parse_evaluations(text: str, expected: int) -> list[dict[str, Any]] | None:
+def _salvage_json_objects(text: str) -> list[dict[str, Any]]:
+    """Extract every COMPLETE top-level {...} object from text (e.g. the body of
+    a truncated JSON array) and return those that parse as dicts. Brace matching
+    is string-aware (braces inside strings don't count); a trailing incomplete
+    object never balances its braces, so it is dropped."""
+    objects: list[dict[str, Any]] = []
+    depth = 0
+    obj_start = -1
+    in_string = False
+    escaped = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and obj_start != -1:
+                try:
+                    parsed = json.loads(text[obj_start : i + 1])
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    objects.append(parsed)
+                obj_start = -1
+    return objects
+
+
+def _parse_object_array(text: str) -> list[dict[str, Any]]:
+    """Objects from a model's JSON array. Try a strict parse of the bracketed
+    array first; if that fails (commonly a truncated array cut off by
+    max_tokens), salvage the complete top-level objects and drop a trailing
+    incomplete one. Returns [] when nothing parses."""
     start, end = text.find("["), text.rfind("]")
-    if start == -1 or end <= start:
-        return None
-    try:
-        parsed = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-    if (
-        isinstance(parsed, list)
-        and len(parsed) == expected
-        and all(isinstance(e, dict) for e in parsed)
-    ):
-        return list(parsed)
-    return None
+    if start != -1 and end > start:
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list):
+            objects = [item for item in parsed if isinstance(item, dict)]
+            if objects:
+                return objects
+    return _salvage_json_objects(text)
+
+
+def _parse_evaluations(text: str) -> list[dict[str, Any]] | None:
+    """Reviewer evaluations (one object per concept, in order), salvaging
+    complete objects from a truncated array. None only when zero objects can be
+    recovered; the reviewer treats any shortfall as unscored concepts."""
+    objects = _parse_object_array(_strip_code_fences(text))
+    return objects or None
+
 
 _UPGRADE_HINT = (
     "This is a sample preview built from competitor research only. Run a full"
@@ -393,18 +445,30 @@ def _mechanism_summary(mechanism: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _strip_code_fences(text: str) -> str:
+    """Drop a surrounding Markdown code fence (```json ... ```) the model may
+    add around the JSON array, so the array extraction below sees clean text."""
+    stripped = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text.strip())  # opening fence (+ optional lang)
+    return re.sub(r"\s*```$", "", stripped)  # closing fence
+
+
 def _parse_concepts(text: str, wanted: int) -> list[dict[str, Any]]:
-    start, end = text.find("["), text.rfind("]")
-    if start != -1 and end > start:
-        try:
-            parsed = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            parsed = None
-        if isinstance(parsed, list) and parsed and all(isinstance(c, dict) for c in parsed):
-            return list(parsed[:wanted])
-    # Malformed output: keep the raw text visible so the reviewer scores it
-    # weak and loops back, instead of the run crashing (rule 6).
-    logger.warning("creative output was not valid JSON; passing raw text to review")
+    cleaned = _strip_code_fences(text)
+    concepts = _parse_object_array(cleaned)  # salvages complete objects if truncated
+    if concepts:
+        return concepts[:wanted]
+    # Nothing salvageable: keep the raw text visible so the reviewer scores it
+    # weak and loops back, instead of the run crashing (rule 6). Log the size
+    # and whether an array was opened but left unclosed, so truncation (a
+    # too-low max_tokens) is visible instead of failing silently.
+    start, end = cleaned.find("["), cleaned.rfind("]")
+    looks_truncated = start != -1 and end <= start
+    logger.warning(
+        "creative output had no salvageable concepts (chars=%d, looks_truncated=%s); "
+        "passing raw text to review",
+        len(text),
+        looks_truncated,
+    )
     return [
         {
             "title": "(unparsed creative output)",
@@ -453,8 +517,7 @@ def creative_director(state: State) -> dict[str, Any]:
                 "mechanisms": [_mechanism_summary(m) for m in mechanisms],
                 "concepts_wanted": wanted,
                 "kept_concepts": [
-                    {"title": c.get("title"), "mechanism_id": c.get("mechanism_id")}
-                    for c in kept
+                    {"title": c.get("title"), "mechanism_id": c.get("mechanism_id")} for c in kept
                 ],
                 "revision_feedback": state.get("review", {}).get("notes", ""),
             },
@@ -485,32 +548,69 @@ def reviewer(state: State) -> dict[str, Any]:
         # the run (rule 6). An unreviewable run still reaches the human gate.
         logger.warning("reviewer call failed; passing concepts through unreviewed")
         return {"review": {"verdict": "error", "notes": "automated review unavailable"}}
-    evaluations = _parse_evaluations(text, expected=len(concepts))
+    evaluations = _parse_evaluations(text)
     if evaluations is None:
         logger.warning("reviewer output unusable; passing concepts through unreviewed")
         return {"review": {"verdict": "error", "notes": "automated review unparseable"}}
 
+    # Pair by position. A truncated review may score fewer concepts than exist;
+    # any concept without an evaluation is rejected as unscored so it regenerates
+    # (never silently kept unreviewed).
     kept: list[dict[str, Any]] = []
-    rejected: list[dict[str, Any]] = []
-    for concept, evaluation in zip(concepts, evaluations, strict=True):
-        score, reasons = _judge(evaluation)
+    rejected: list[dict[str, Any]] = []  # summaries for the revision feedback
+    rejected_concepts: list[dict[str, Any]] = []  # full concepts, for keep-best fallback
+    for i, concept in enumerate(concepts):
+        evaluation = evaluations[i] if i < len(evaluations) else None
+        if evaluation is None:
+            score, reasons = 0.0, ["not scored — the reviewer output was truncated"]
+            scores, review_notes = {}, ""
+        else:
+            score, reasons = _judge(evaluation)
+            scores, review_notes = evaluation.get("scores", {}), str(evaluation.get("notes", ""))
         if reasons:
             rejected.append(
                 {
                     "title": concept.get("title", ""),
                     "score": score,
                     "reasons": reasons,
-                    "notes": str(evaluation.get("notes", "")),
+                    "notes": review_notes,
+                }
+            )
+            rejected_concepts.append(
+                {
+                    **concept,
+                    "score": score,
+                    "rubric_scores": scores,
+                    "review_reasons": reasons,
+                    "review_notes": review_notes,
+                    "below_bar": True,
                 }
             )
         else:
-            kept.append(
-                {**concept, "score": score, "rubric_scores": evaluation.get("scores", {})}
-            )
+            kept.append({**concept, "score": score, "rubric_scores": scores})
     if not rejected:
         return {
             "concepts": kept,
             "review": {"verdict": "strong", "notes": "all concepts passed", "rejected": []},
+        }
+    # Loop exhausted (this is the last allowed pass) with nothing passing: keep
+    # the highest-scored rejected concept — with its score and the reviewer's
+    # notes, flagged below the bar — so the report always delivers at least one
+    # concept instead of finalizing empty.
+    if not kept and state["step_count"] > _MAX_REVIEW_LOOPS:
+        best = max(rejected_concepts, key=lambda c: c["score"])
+        logger.warning(
+            "no concept passed the rubric after %d loops; delivering best below-bar concept %r",
+            _MAX_REVIEW_LOOPS,
+            best.get("title", ""),
+        )
+        return {
+            "concepts": [best],
+            "review": {
+                "verdict": "below_bar",
+                "notes": "No concept passed the rubric; delivering the best below-bar concept.",
+                "rejected": rejected,
+            },
         }
     notes = "Rejected concepts to replace: " + json.dumps(rejected, sort_keys=True)
     return {"concepts": kept, "review": {"verdict": "weak", "notes": notes, "rejected": rejected}}

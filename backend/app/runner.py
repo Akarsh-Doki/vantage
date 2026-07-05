@@ -38,10 +38,14 @@ _NODE_STEPS = {
 
 # Cents per million tokens (input, output) by model-id prefix. Approximate,
 # for the quota/abuse ledger — reconcile billing against Anthropic's console.
+# "tavily" is the search tool, priced at $0 on the free tier — an explicit
+# zero so search calls record an intentional no-cost rather than tripping the
+# "no price configured" warning on every call.
 _PRICES_CENTS_PER_MTOK: dict[str, tuple[int, int]] = {
     "claude-haiku-4-5": (100, 500),
     "claude-sonnet-4-5": (300, 1500),
     "claude-sonnet-5": (300, 1500),
+    "tavily": (0, 0),
 }
 
 
@@ -76,9 +80,7 @@ class _RunMeter:
         self.tokens_in += tokens_in
         self.tokens_out += tokens_out
         self.cost_cents += cost
-        db.insert_usage(
-            self.user_id, self.run_id, kind, model, tokens_in, tokens_out, round(cost)
-        )
+        db.insert_usage(self.user_id, self.run_id, kind, model, tokens_in, tokens_out, round(cost))
 
     def totals(self) -> dict[str, int]:
         return {

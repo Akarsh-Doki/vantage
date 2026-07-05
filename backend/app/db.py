@@ -57,9 +57,7 @@ def create_run(user_id: str, project_id: str, kind: str) -> str:
     rows = _rows(
         _client()
         .table("report_runs")
-        .insert(
-            {"user_id": user_id, "project_id": project_id, "kind": kind, "status": "queued"}
-        )
+        .insert({"user_id": user_id, "project_id": project_id, "kind": kind, "status": "queued"})
         .execute()
         .data
     )
@@ -120,9 +118,7 @@ def count_user_runs_today(user_id: str) -> int:
 
 
 def get_profile(user_id: str) -> dict[str, Any] | None:
-    rows = _rows(
-        _client().table("profiles").select("*").eq("id", user_id).execute().data
-    )
+    rows = _rows(_client().table("profiles").select("*").eq("id", user_id).execute().data)
     return rows[0] if rows else None
 
 
@@ -218,13 +214,7 @@ def claim_free_sample(user_id: str) -> bool:
 
 def release_free_sample(user_id: str) -> None:
     """Refund the sample quota (used when a sample run fails outright)."""
-    (
-        _client()
-        .table("profiles")
-        .update({"free_sample_used": False})
-        .eq("id", user_id)
-        .execute()
-    )
+    (_client().table("profiles").update({"free_sample_used": False}).eq("id", user_id).execute())
 
 
 def insert_usage(

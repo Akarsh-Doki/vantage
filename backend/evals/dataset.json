@@ -1,0 +1,152 @@
+{
+  "_meta": {
+    "purpose": "Quality-eval dataset for the Vantage pipeline. Each item is a business_input (the graph's business dict) plus expectations describing what a good campaign should address, used by the relevance judge. Covers varied business types, goals, and budgets. This measures OUTPUT QUALITY and is distinct from the pytest suite (code correctness).",
+    "count": 12
+  },
+  "items": [
+    {
+      "business_input": {
+        "name": "Rivertown Plumbing",
+        "industry": "residential plumbing",
+        "business_type": "local_service",
+        "goal": "foot_traffic",
+        "budget": "low",
+        "website_url": "https://rivertownplumbing.example",
+        "competitor_urls": ["https://citywideplumbers.example"]
+      },
+      "expectations": "Drives local same-day/emergency call volume in one service area, leans on trust signals (licensing, reviews, the owner on camera), and is executable by a 2-person crew with no ad budget. Should not depend on national reach or paid media."
+    },
+    {
+      "business_input": {
+        "name": "El Fuego Tacos",
+        "industry": "fast-casual taqueria",
+        "business_type": "restaurant",
+        "goal": "awareness",
+        "budget": "zero",
+        "website_url": "https://elfuegotacos.example",
+        "competitor_urls": ["https://taqueriadelsol.example", "https://burritobros.example"]
+      },
+      "expectations": "Builds neighborhood awareness with zero spend via organic short-form video, a repeatable signature-dish hook, and local-community participation. Must be filmable on a phone by staff; no giveaways-as-strategy or paid influencers."
+    },
+    {
+      "business_input": {
+        "name": "Emberwick Candles",
+        "industry": "handmade soy candles (DTC)",
+        "business_type": "ecommerce_dtc",
+        "goal": "product_launch",
+        "budget": "medium",
+        "website_url": "https://emberwick.example",
+        "competitor_urls": ["https://glowandco.example"]
+      },
+      "expectations": "Launches a new seasonal scent line with a distinctive, ownable hook tied to the brand's craft story, drives pre-orders/UGC, and is native to a current social format. Concepts should differentiate from generic candle marketing and cite real evidence."
+    },
+    {
+      "business_input": {
+        "name": "ShiftEasy",
+        "industry": "shift-scheduling SaaS for small teams",
+        "business_type": "startup_saas",
+        "goal": "lead_generation",
+        "budget": "medium",
+        "website_url": "https://shifteasy.example",
+        "competitor_urls": ["https://rosterly.example", "https://teamclock.example"]
+      },
+      "expectations": "Generates qualified sign-ups from small-business owners by dramatizing a specific scheduling pain point, offers a clear low-friction call to action (free trial/tool), and is credible to a skeptical operator audience. Not a generic 'post more' or discount play."
+    },
+    {
+      "business_input": {
+        "name": "BrightPath Facilities",
+        "industry": "commercial office cleaning",
+        "business_type": "b2b",
+        "goal": "trust_credibility",
+        "budget": "low",
+        "website_url": "https://brightpathfacilities.example",
+        "competitor_urls": ["https://sparkleclean.example"]
+      },
+      "expectations": "Establishes credibility with office/facilities managers via proof (case studies, checklists, before/after, testimonials) rather than hype, and fits a small B2B team's budget. Should address a real buyer objection, not chase virality."
+    },
+    {
+      "business_input": {
+        "name": "Coach Mia",
+        "industry": "online fitness coaching / personal brand",
+        "business_type": "creator_personal_brand",
+        "goal": "virality",
+        "budget": "zero",
+        "website_url": "https://coachmia.example",
+        "competitor_urls": ["https://fitwithjake.example"]
+      },
+      "expectations": "Creates a genuinely shareable, identity-driven idea rooted in a real behavioral insight (not a borrowed meme), native to short-form video, and executable solo at zero cost. Earns reach organically rather than requiring paid promotion."
+    },
+    {
+      "business_input": {
+        "name": "Paws & Relax Grooming",
+        "industry": "dog grooming salon",
+        "business_type": "local_service",
+        "goal": "loyalty_retention",
+        "budget": "low",
+        "website_url": "https://pawsandrelax.example",
+        "competitor_urls": ["https://furfabulous.example"]
+      },
+      "expectations": "Increases repeat bookings and referrals from existing clients via a participatory, low-cost ritual (e.g. member content, milestone moments) unique to this salon. Should leverage the emotional pet-owner relationship, not a bare discount."
+    },
+    {
+      "business_input": {
+        "name": "Northshore Coffee Roasters",
+        "industry": "specialty coffee roaster with a cafe",
+        "business_type": "restaurant",
+        "goal": "foot_traffic",
+        "budget": "medium",
+        "website_url": "https://northshoreroasters.example",
+        "competitor_urls": ["https://harborbeans.example", "https://dailygrind.example"]
+      },
+      "expectations": "Drives weekday cafe foot traffic with a distinctive in-store experience or ritual that gives locals a reason to choose it over chains, is shareable in-store, and works on a modest budget. Ties to a real product truth about the roast/sourcing."
+    },
+    {
+      "business_input": {
+        "name": "Lila Mae Jewelry",
+        "industry": "handmade jewelry (DTC)",
+        "business_type": "ecommerce_dtc",
+        "goal": "awareness",
+        "budget": "low",
+        "website_url": "https://lilamae.example",
+        "competitor_urls": ["https://adornedco.example"]
+      },
+      "expectations": "Builds brand awareness for a solo maker via an ownable craft/origin story and UGC-friendly format, differentiated from mass-market jewelry ads, on a small budget. Any claim should be backed by a real source; no invented stats."
+    },
+    {
+      "business_input": {
+        "name": "Tallyup",
+        "industry": "invoicing app for freelancers",
+        "business_type": "startup_saas",
+        "goal": "product_launch",
+        "budget": "high",
+        "website_url": "https://tallyup.example",
+        "competitor_urls": ["https://invoiceninja.example", "https://freshinvoice.example"]
+      },
+      "expectations": "Launches to freelancers with a single-minded, memorable positioning against incumbents, a participatory or reactive hook, and a clear activation path. Even with a higher budget, ideas should earn attention rather than only work if paid; grounded in real evidence."
+    },
+    {
+      "business_input": {
+        "name": "Meridian IT Partners",
+        "industry": "managed IT services / consultancy",
+        "business_type": "b2b",
+        "goal": "lead_generation",
+        "budget": "medium",
+        "website_url": "https://meridianit.example",
+        "competitor_urls": ["https://nexustech.example"]
+      },
+      "expectations": "Generates leads from SMB owners worried about downtime/security by dramatizing a concrete risk and offering a useful low-friction asset (audit/checklist). Credible and specific to IT buyers; not a generic awareness stunt."
+    },
+    {
+      "business_input": {
+        "name": "The Slow Read",
+        "industry": "independent books/culture newsletter",
+        "business_type": "creator_personal_brand",
+        "goal": "trust_credibility",
+        "budget": "low",
+        "website_url": "https://theslowread.example",
+        "competitor_urls": ["https://thebriefing.example"]
+      },
+      "expectations": "Grows subscriber trust and referrals with an authentic, single-minded editorial identity and a participatory reader ritual, executable by one writer on a small budget. Should deepen credibility, not chase a viral spike, and avoid generic 'grow your list' tactics."
+    }
+  ]
+}
