@@ -1,109 +1,122 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+/*
+ * Geist + Geist Mono ship as variable fonts inside the `geist` npm package.
+ * We load them locally (no network round-trip). Fraunces is loaded from
+ * Google Fonts via <link> in index.html.
+ */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2') format('woff2');
 }
 
-@media (prefers-color-scheme: dark) {
+@layer base {
+  /*
+   * THE LOCKED DESIGN SYSTEM — single source of truth.
+   * Colors are HSL channels (the format Tailwind/shadcn consume); the source
+   * hex is noted on each line. Change a value here and it changes everywhere.
+   */
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --background: 60 16.7% 97.6%; /* #FAFAF8 — warm off-white */
+    --foreground: 60 6.1% 9.6%; /* #1A1A17 — near-black */
+
+    --card: 60 16.7% 97.6%; /* #FAFAF8 */
+    --card-foreground: 60 6.1% 9.6%; /* #1A1A17 */
+    --popover: 60 16.7% 97.6%; /* #FAFAF8 */
+    --popover-foreground: 60 6.1% 9.6%; /* #1A1A17 */
+
+    --primary: 152.9 34.1% 17.8%; /* #1E3D2F — deep forest green */
+    --primary-foreground: 60 16.7% 97.6%; /* #FAFAF8 */
+    --primary-hover: 148.8 35.7% 27.5%; /* #2D5F45 — brighter green */
+    --primary-subtle: 102 25% 92.2%; /* #E9F0E6 — faint green wash for hover surfaces */
+
+    --secondary: 41.1 29.2% 87.3%; /* #E8E2D5 — soft warm tan */
+    --secondary-foreground: 60 6.1% 9.6%; /* #1A1A17 */
+    --secondary-hover: 40 26.7% 82.4%; /* #DED6C6 — deeper sand on hover */
+
+    --muted: 45 23.5% 93.3%; /* #F2F0EA — barely-tinted section background */
+    --muted-foreground: 37.5 8.1% 38.8%; /* #6B655B — warm gray text */
+
+    --accent: 41.1 29.2% 87.3%; /* #E8E2D5 — sand */
+    --accent-foreground: 60 6.1% 9.6%; /* #1A1A17 */
+
+    --destructive: 0 55.8% 39%; /* #9B2C2C — muted brick red */
+    --destructive-foreground: 60 16.7% 97.6%; /* #FAFAF8 */
+
+    --success: 148.8 35.7% 27.5%; /* #2D5F45 */
+    --success-foreground: 60 16.7% 97.6%; /* #FAFAF8 */
+
+    --border: 45 16% 90.2%; /* #EAE8E2 — barely-there warm gray */
+    --input: 45 16% 90.2%; /* #EAE8E2 */
+    --ring: 152.9 34.1% 17.8%; /* #1E3D2F — focus ring = primary */
+
+    /* One radius everywhere */
+    --radius: 0.625rem; /* 10px */
+
+    /* Reusable motion token */
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration: 250ms;
+
+    /* Layout rhythm — shared by every screen (see .reading-column below) */
+    --content-width: 44rem; /* ~700px centered reading column */
+    --section-gap: 5rem; /* breathing room between major sections */
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+    line-height: 1.6; /* calm, document-like body rhythm inherited everywhere */
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@layer components {
+  /*
+   * The shared measure for every screen: a centered reading column with
+   * generous gutters on small viewports. Use it as the top-level wrapper so
+   * real pages inherit the same rhythm as this preview.
+   */
+  .reading-column {
+    @apply mx-auto w-full px-6 sm:px-8;
+    max-width: var(--content-width);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+/* Respect users who ask their OS to minimize motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }
