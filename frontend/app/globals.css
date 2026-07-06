@@ -1,0 +1,271 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+/*
+  Vantage is a light-only, warm-cream themed app.
+  The v0 export shipped a `.dark` block and a `@media (prefers-color-scheme: dark)`
+  block that flipped the whole site to a gray/black neutral theme whenever the OS
+  was in dark mode. That is what caused the "black background" bug. Both are
+  removed here so the site always renders the intended cream + forest-green palette.
+*/
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-forest: var(--forest);
+  --color-forest-hover: var(--forest-hover);
+  --color-forest-foreground: var(--forest-foreground);
+  --color-tan: var(--tan);
+  --color-hairline: var(--hairline);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light;
+  /* Warm off-white #FAFAF8 */
+  --background: oklch(0.985 0.003 95);
+  /* Near-black #1A1A17 */
+  --foreground: oklch(0.201 0.005 95);
+  --card: oklch(0.995 0.003 95);
+  --card-foreground: oklch(0.201 0.005 95);
+  --popover: oklch(0.995 0.003 95);
+  --popover-foreground: oklch(0.201 0.005 95);
+  /* Deep forest green #1E3D2F */
+  --primary: oklch(0.33 0.048 158);
+  --primary-foreground: oklch(0.985 0.003 95);
+  /* Soft tan #E8E2D5 */
+  --secondary: oklch(0.912 0.014 92);
+  --secondary-foreground: oklch(0.201 0.005 95);
+  --muted: oklch(0.93 0.008 92);
+  --muted-foreground: oklch(0.505 0.012 95);
+  --accent: oklch(0.912 0.014 92);
+  --accent-foreground: oklch(0.33 0.048 158);
+  --destructive: oklch(0.577 0.245 27.325);
+  /* Hairline border #EAE8E2 */
+  --border: oklch(0.912 0.006 92);
+  --input: oklch(0.912 0.006 92);
+  --ring: oklch(0.33 0.048 158);
+  --forest: oklch(0.33 0.048 158);
+  /* Brighter green #2D5F45 for hover states */
+  --forest-hover: #2d5f45;
+  --forest-foreground: oklch(0.985 0.003 95);
+  --tan: oklch(0.912 0.014 92);
+  --hairline: oklch(0.912 0.006 92);
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Shimmer loading bar inside research.run() */
+  @keyframes vantage-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  .animate-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      var(--tan) 0%,
+      var(--forest) 45%,
+      var(--forest) 55%,
+      var(--tan) 100%
+    );
+    background-size: 200% 100%;
+    animation: vantage-shimmer 1.8s linear infinite;
+  }
+
+  /* Findings rows appearing one by one, gently looping */
+  @keyframes vantage-reveal {
+    0%,
+    8% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    18%,
+    82% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    92%,
+    100% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  .animate-reveal {
+    animation: vantage-reveal 6s ease-in-out infinite;
+    opacity: 0;
+  }
+
+  /* Sub-source expand */
+  @keyframes vantage-expand {
+    0%,
+    30% {
+      opacity: 0;
+      max-height: 0;
+    }
+    45%,
+    82% {
+      opacity: 1;
+      max-height: 48px;
+    }
+    92%,
+    100% {
+      opacity: 0;
+      max-height: 0;
+    }
+  }
+  .animate-expand {
+    animation: vantage-expand 6s ease-in-out infinite;
+    overflow: hidden;
+  }
+
+  /* Flowing dashes along pipeline connectors */
+  @keyframes vantage-dash {
+    to {
+      stroke-dashoffset: -24;
+    }
+  }
+  .animate-dash {
+    stroke-dasharray: 5 7;
+    animation: vantage-dash 1.4s linear infinite;
+  }
+
+  /* Soft pulsing glow for synthesis node */
+  @keyframes vantage-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in oklch, var(--forest) 30%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 10px color-mix(in oklch, var(--forest) 0%, transparent);
+    }
+  }
+  .animate-glow {
+    animation: vantage-glow 2.6s ease-in-out infinite;
+  }
+
+  /* Gentle fade-up used by concept card build */
+  @keyframes vantage-buildup {
+    0%,
+    10% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    22%,
+    84% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    94%,
+    100% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .animate-buildup {
+    animation: vantage-buildup 7s ease-in-out infinite;
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-shimmer,
+    .animate-reveal,
+    .animate-expand,
+    .animate-dash,
+    .animate-glow,
+    .animate-buildup {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+/*
+  Print / "Save as PDF" export. The report's Export button calls window.print();
+  this block turns the browser print dialog into a clean document export.
+*/
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  /* Flip the theme tokens to plain black-on-white; everything derived from
+     them (backgrounds, cards, text) follows, so concept/section styling
+     stays intact and readable. Forest green is kept for accent labels. */
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --muted: #ffffff;
+    --muted-foreground: oklch(0.32 0 0);
+  }
+
+  /* Chrome (nav, footer, report action bar) and decorative image sections */
+  .site-nav,
+  .site-footer,
+  .report-action-bar,
+  .decorative-bg {
+    display: none !important;
+  }
+
+  /* Expand the report column to the full page width */
+  main [class*='max-w-'] {
+    max-width: none !important;
+  }
+
+  /* No shadows or sticky offsets on paper */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Avoid awkward breaks inside cards/headings */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+}
