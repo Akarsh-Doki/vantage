@@ -1,13 +1,15 @@
 import type { Kpi } from "@/lib/report-types"
+import { countWord } from "@/lib/utils"
 import { SectionHeading } from "./section-heading"
 
-export function Measurement({ kpis }: { kpis: Kpi[] }) {
+export function Measurement({ kpis, eyebrow = "07 / Measurement" }: { kpis: Kpi[]; eyebrow?: string }) {
   return (
     <div>
       <SectionHeading
-        eyebrow="07 / Measurement"
+        eyebrow={eyebrow}
         title="What we'll track"
-        lede="Five numbers decide whether this plan is working. Everything else is commentary."
+        lede={`${countWord(kpis.length)} numbers, checked weekly.`}
+        agent="strategy"
       />
       <div className="overflow-x-auto rounded-[10px] border border-hairline bg-white">
         <table className="w-full min-w-[560px] text-left text-sm">

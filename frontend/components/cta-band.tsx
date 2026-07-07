@@ -3,8 +3,9 @@ import { ArrowRight } from "lucide-react"
 
 export function CtaBand() {
   return (
-    // `isolate`: see hero.tsx — keeps the -z-10 image above the body background.
-    <section id="pricing" className="relative isolate overflow-hidden border-t border-border">
+    // `isolate`: see hero.tsx. Keeps the -z-10 image above the body background.
+    // The #pricing anchor lives on the real pricing section now, not here.
+    <section className="relative isolate overflow-hidden border-t border-border">
       {/* Drop a lush green landscape at public/images/cta-landscape.jpg */}
       <div className="decorative-bg absolute inset-0 -z-10">
         <img src="/images/cta-landscape.jpg" alt="" aria-hidden="true" className="h-full w-full object-cover" />

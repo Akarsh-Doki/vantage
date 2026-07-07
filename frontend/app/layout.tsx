@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Vantage — Your AI marketing team, in minutes",
+  title: "Vantage · Your AI marketing team, in minutes",
   description:
     "Vantage is an AI marketing strategist for small local businesses. Live cited research, a team of agents, and finished, exportable campaigns.",
 }

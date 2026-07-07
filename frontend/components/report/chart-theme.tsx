@@ -1,4 +1,4 @@
-// Shared theming for every report chart — never recharts defaults.
+// Shared theming for every report chart. Never recharts defaults.
 
 export const chart = {
   forest: "#1E3D2F",

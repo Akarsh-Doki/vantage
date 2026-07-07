@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
   })
 
   // getUser() validates the JWT with Supabase (unlike getSession, which only
-  // reads the cookie) — required for a trustworthy auth check.
+  // reads the cookie), which is required for a trustworthy auth check.
   const {
     data: { user },
   } = await supabase.auth.getUser()

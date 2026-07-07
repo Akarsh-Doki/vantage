@@ -1,5 +1,7 @@
 // Shape of a full Vantage report. The sample page fills this with illustrative
-// data; real reports will hydrate the same shape from the backend API.
+// data; real reports hydrate the same shape from the backend API through
+// lib/report-adapter.ts. Sections the backend can't populate yet are optional
+// and simply don't render (never invent data to fill them).
 
 export interface ReportMeta {
   business: string
@@ -13,17 +15,23 @@ export interface InsightTile {
   detail: string
 }
 
+/** A paragraph plus the 1-based numbers of the sources it cites. */
+export interface CitedParagraph {
+  text: string
+  cites: number[]
+}
+
 export interface ExecutiveSummary {
-  paragraphs: string[]
-  tiles: InsightTile[]
+  paragraphs: CitedParagraph[]
+  tiles?: InsightTile[]
 }
 
 export interface CompetitorPoint {
   name: string
-  /** 0–10, low → premium */
-  price: number
-  /** 0–10, perceived freshness & craft */
-  freshness: number
+  /** horizontal position, 0 to 10 on the map's x axis */
+  x: number
+  /** vertical position, 0 to 10 on the map's y axis */
+  y: number
   isYou?: boolean
 }
 
@@ -34,10 +42,19 @@ export interface CompetitorRow {
 }
 
 export interface CompetitiveLandscape {
+  /** section lede; a report supplies it only when there is real copy for it */
+  lede?: string
+  /** axis captions, e.g. "Price: value to premium" */
+  xLabel: string
+  yLabel: string
   points: CompetitorPoint[]
-  /** paragraphs may embed citation markers via {{n}} — see renderWithCites */
-  analysis: { text: string; cites: number[] }[]
-  table: CompetitorRow[]
+  /** annotated whitespace region on the map (sample editorial; optional) */
+  highlight?: { x1: number; x2: number; y1: number; y2: number; title: string; note?: string }
+  /** analysis paragraphs carry their citation numbers in `cites` */
+  analysis?: CitedParagraph[]
+  table?: CompetitorRow[]
+  /** sources backing the map placements (1-based numbers) */
+  cites?: number[]
 }
 
 export interface AudienceSegment {
@@ -57,14 +74,16 @@ export interface Persona {
 
 export interface Audience {
   segments: AudienceSegment[]
-  persona: Persona
-  implication: { text: string; cites: number[] }
+  persona?: Persona
+  implication?: CitedParagraph
+  /** sources backing the segment shares (1-based numbers) */
+  cites?: number[]
 }
 
 export interface Positioning {
   statement: string
   tagline: string
-  whyNow: { text: string; cites: number[] }[]
+  whyNow: CitedParagraph[]
 }
 
 export interface Channel {
@@ -76,7 +95,7 @@ export interface Channel {
 
 export interface FunnelStage {
   name: string
-  detail: string
+  detail?: string
   /** absolute % of trial cohort remaining at this stage */
   share: number
   /** conversion from previous stage, shown between bars */
@@ -84,12 +103,21 @@ export interface FunnelStage {
 }
 
 export interface Strategy {
-  narrative: { text: string; cites: number[] }[]
-  pullQuote: string
-  pullQuoteCaption: string
-  channels: Channel[]
-  funnel: FunnelStage[]
-  pillars: { title: string; body: string }[]
+  /** section heading; a generic default applies when absent */
+  title?: string
+  lede?: string
+  narrative: CitedParagraph[]
+  pullQuote?: string
+  pullQuoteCaption?: string
+  channels?: Channel[]
+  funnel?: FunnelStage[]
+  /** note shown under the funnel diagram */
+  funnelNote?: string
+  /** annotation on the funnel's steepest drop (sample editorial; optional) */
+  funnelDropLabel?: string
+  /** sources backing the funnel rates (1-based numbers) */
+  funnelCites?: number[]
+  pillars?: { title: string; body: string }[]
 }
 
 export interface CalendarEntry {
@@ -104,12 +132,18 @@ export interface CreativeConcept {
   mechanism: string
   /** id in the Vantage creative-pattern library */
   mechanismId: string
-  score: string
-  idea: string
+  /** rubric score, e.g. "8.7 / 10"; absent when the run skipped the reviewer */
+  score?: string
+  idea?: string
   execution: string
-  own: string
-  /** index into sources[] */
-  sourceIndex: number
+  own?: string
+  /** content format the concept is native to, e.g. "Instagram Reel" */
+  format?: string
+  budgetFit?: string
+  /** delivered even though it scored under the rubric bar */
+  belowBar?: boolean
+  /** index into sources[]; absent when the grounding source is unknown */
+  sourceIndex?: number
   calendar?: CalendarEntry[]
 }
 
@@ -122,16 +156,18 @@ export interface Kpi {
 export interface Source {
   title: string
   host: string
+  /** full URL; when present the source entry links out */
+  url?: string
 }
 
 export interface ReportData {
   meta: ReportMeta
-  executiveSummary: ExecutiveSummary
-  landscape: CompetitiveLandscape
-  audience: Audience
-  positioning: Positioning
-  strategy: Strategy
-  concepts: CreativeConcept[]
-  kpis: Kpi[]
-  sources: Source[]
+  executiveSummary?: ExecutiveSummary
+  landscape?: CompetitiveLandscape
+  audience?: Audience
+  positioning?: Positioning
+  strategy?: Strategy
+  concepts?: CreativeConcept[]
+  kpis?: Kpi[]
+  sources?: Source[]
 }

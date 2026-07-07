@@ -63,6 +63,17 @@ class ApproveRequest(BaseModel):
     feedback: str | None = Field(default=None, max_length=2000)
 
 
+class RenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=120)
+
+
+class RenameResponse(BaseModel):
+    run_id: str
+    name: str
+
+
 class RunCreated(BaseModel):
     run_id: str
     status: RunStatusValue
@@ -74,6 +85,8 @@ class RunSummary(BaseModel):
     status: str
     current_step: str | None = None
     created_at: str | None = None
+    # user-chosen name, falling back to the project's business name
+    name: str | None = None
 
 
 class RunListResponse(BaseModel):
@@ -81,10 +94,16 @@ class RunListResponse(BaseModel):
 
 
 class ReportPayload(BaseModel):
+    """The stored deliverable. brief/strategy are structured sections
+    ({headline?, paragraphs: [{text, cites: [n]}]}); creative concepts carry
+    source_n numeric citations; sources is the numbered citation list
+    ([{n, title, url}]). list[Any] on sources tolerates legacy rows that
+    stored plain URL strings."""
+
     brief: dict[str, Any] | None = None
     strategy: dict[str, Any] | None = None
     creative: list[dict[str, Any]] | None = None
-    sources: list[str] | None = None
+    sources: list[Any] | None = None
 
 
 class RunStatus(BaseModel):
@@ -93,15 +112,10 @@ class RunStatus(BaseModel):
     status: str
     current_step: str | None = None
     error: str | None = None
+    name: str | None = None
     report: ReportPayload | None = None
 
 
 class DeleteResponse(BaseModel):
     run_id: str
     deleted: bool
-
-
-class SampleResponse(BaseModel):
-    preview: bool
-    upgrade_hint: str
-    result: dict[str, Any]

@@ -1,7 +1,7 @@
 """Graph state for the campaign pipeline (see app/graph.py)."""
 
 import operator
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 from langgraph.types import Send
 
@@ -9,6 +9,7 @@ from langgraph.types import Send
 class Finding(TypedDict):
     text: str
     source_url: str  # provenance is mandatory — a finding without a source is discarded
+    title: NotRequired[str]  # the page title, used as the numbered source's label
 
 
 class State(TypedDict):

@@ -11,6 +11,8 @@ from app.limits import limiter
 from app.schemas import (
     ApproveRequest,
     DeleteResponse,
+    RenameRequest,
+    RenameResponse,
     ReportPayload,
     ReportRequest,
     RunCreated,
@@ -20,6 +22,17 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _run_name(run: dict[str, object]) -> str | None:
+    """The user-chosen display name, falling back to the project's business
+    name (embedded by db.get_run/list_runs)."""
+    display = run.get("display_name")
+    if display:
+        return str(display)
+    project = run.get("projects") or {}
+    business = project.get("business_name") if isinstance(project, dict) else None
+    return str(business) if business else None
 
 
 @router.post("", response_model=RunCreated, status_code=status.HTTP_202_ACCEPTED)
@@ -56,7 +69,10 @@ def create_report(
 
 @router.get("", response_model=RunListResponse)
 def list_reports(user_id: UserId) -> RunListResponse:
-    deleted = db.deleted_report_run_ids(user_id)
+    # A completed run is listed only when its deliverable is openable: this
+    # drops soft-deleted reports AND legacy sample runs that never stored one
+    # (their detail GET would 404). In-flight and failed runs always show.
+    openable = db.report_run_ids(user_id)
     return RunListResponse(
         runs=[
             RunSummary(
@@ -65,9 +81,10 @@ def list_reports(user_id: UserId) -> RunListResponse:
                 status=str(run["status"]),
                 current_step=run.get("current_step"),
                 created_at=run.get("created_at"),
+                name=_run_name(run),
             )
             for run in db.list_runs(user_id)
-            if str(run["id"]) not in deleted  # soft-deleted deliverables are gone
+            if str(run["status"]) != "completed" or str(run["id"]) in openable
         ]
     )
 
@@ -94,8 +111,18 @@ def get_report(run_id: UUID, user_id: UserId) -> RunStatus:
         status=str(run["status"]),
         current_step=run.get("current_step"),
         error=run.get("error"),
+        name=_run_name(run),
         report=report_payload,
     )
+
+
+@router.patch("/{run_id}", response_model=RenameResponse)
+def rename_report(run_id: UUID, request: RenameRequest, user_id: UserId) -> RenameResponse:
+    # Owner-scoped update; a miss (not found OR not the caller's) is a 404,
+    # indistinguishable on purpose, same as GET.
+    if not db.rename_run(str(run_id), user_id, request.name):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return RenameResponse(run_id=str(run_id), name=request.name)
 
 
 @router.post("/{run_id}/approve", response_model=RunCreated)

@@ -1,11 +1,23 @@
 import type { Positioning } from "@/lib/report-types"
+import { AgentByline } from "./agent-byline"
 import { CitedText } from "./citation"
-import { SectionHeading } from "./section-heading"
+import { SectionRule } from "./section-heading"
 
-export function PositioningSection({ data }: { data: Positioning }) {
+/*
+ * This section has no serif title on purpose (the statement is the title),
+ * but it keeps the shared header structure: eyebrow, then the baseline rule
+ * with the contributor credential seated on it.
+ */
+export function PositioningSection({ data, number = "04" }: { data: Positioning; number?: string }) {
   return (
     <div>
-      <SectionHeading eyebrow="04 / Positioning" title="The sentence everything hangs on" />
+      <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-forest">
+        {number} / Positioning
+      </p>
+      <div className="mb-9 mt-6 flex items-center gap-5">
+        <SectionRule />
+        <AgentByline agent="strategy" />
+      </div>
 
       <figure className="relative overflow-hidden rounded-[10px] border border-forest/25 bg-white p-8 md:p-12">
         <span className="absolute inset-y-0 left-0 w-1 bg-forest" aria-hidden />

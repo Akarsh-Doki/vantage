@@ -1,20 +1,32 @@
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import type { ReactNode } from "react"
 import type { ReportMeta } from "@/lib/report-types"
 
 /*
- * Public sample-report header. No Export/Approve here — those belong to the
- * authenticated report view; this page's job is to convert readers, so the
- * action area carries a "Sample report" badge and one primary CTA.
+ * Report header shared by the public sample and the authenticated report view.
+ * The pages differ only in the action area: the sample carries a conversion
+ * CTA, the real report carries Export. Both come in through `actions`.
  */
-export function ReportHeader({ meta }: { meta: ReportMeta }) {
+export function ReportHeader({
+  meta,
+  badge,
+  backHref = "/",
+  actions,
+}: {
+  meta: ReportMeta
+  /** small status chip, e.g. "Sample report" or "Full report" */
+  badge?: string
+  backHref?: string
+  actions?: ReactNode
+}) {
   return (
     <header className="border-b border-hairline">
-      {/* Action bar — hidden when printing (see @media print in globals.css) */}
+      {/* Action bar, hidden when printing (see @media print in globals.css) */}
       <div className="report-action-bar mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-5">
         <div className="flex items-center gap-4">
           <Link
-            href="/"
+            href={backHref}
             className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -26,16 +38,12 @@ export function ReportHeader({ meta }: { meta: ReportMeta }) {
           </Link>
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden items-center rounded-full border border-forest/25 bg-forest/5 px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-forest sm:inline-flex">
-            Sample report
-          </span>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-[10px] bg-forest px-4 py-2 text-sm font-medium text-forest-foreground transition-colors hover:bg-forest-hover"
-          >
-            Run this on your business
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {badge ? (
+            <span className="hidden items-center rounded-full border border-forest/25 bg-forest/5 px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-forest sm:inline-flex">
+              {badge}
+            </span>
+          ) : null}
+          {actions}
         </div>
       </div>
 
@@ -43,9 +51,11 @@ export function ReportHeader({ meta }: { meta: ReportMeta }) {
       <div className="mx-auto max-w-[760px] px-6 pb-16 pt-12">
         <div className="flex flex-wrap items-center gap-3">
           <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-forest">Marketing Report</p>
-          <span className="inline-flex items-center rounded-full border border-forest/25 bg-forest/5 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-forest sm:hidden">
-            Sample
-          </span>
+          {badge ? (
+            <span className="inline-flex items-center rounded-full border border-forest/25 bg-forest/5 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-forest sm:hidden">
+              {badge}
+            </span>
+          ) : null}
         </div>
         <h1 className="mt-4 text-balance font-serif text-4xl font-medium leading-[1.08] tracking-tight md:text-6xl">
           {meta.business}

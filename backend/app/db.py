@@ -79,13 +79,29 @@ def get_run(run_id: str, user_id: str) -> dict[str, Any] | None:
     rows = _rows(
         _client()
         .table("report_runs")
-        .select("*")
+        # embed the project's business name so responses can fall back to it
+        # when no display_name was set
+        .select("*, projects(business_name)")
         .eq("id", run_id)
         .eq("user_id", user_id)
         .execute()
         .data
     )
     return rows[0] if rows else None
+
+
+def rename_run(run_id: str, user_id: str, name: str) -> bool:
+    """Set the user-facing display name; False when the run isn't the caller's."""
+    rows = _rows(
+        _client()
+        .table("report_runs")
+        .update({"display_name": name})
+        .eq("id", run_id)
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+    return bool(rows)
 
 
 def count_sample_runs_today() -> int:
@@ -126,7 +142,7 @@ def list_runs(user_id: str) -> list[dict[str, Any]]:
     return _rows(
         _client()
         .table("report_runs")
-        .select("*")
+        .select("*, projects(business_name)")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()
@@ -171,13 +187,16 @@ def get_report(run_id: str, user_id: str) -> dict[str, Any] | None:
     return rows[0] if rows else None
 
 
-def deleted_report_run_ids(user_id: str) -> set[str]:
+def report_run_ids(user_id: str) -> set[str]:
+    """Run ids that have a live (not soft-deleted) stored deliverable. The
+    listing shows a completed run only when its report is actually openable,
+    which also hides legacy sample runs from before samples were persisted."""
     rows = _rows(
         _client()
         .table("reports")
         .select("run_id")
         .eq("user_id", user_id)
-        .not_.is_("deleted_at", "null")
+        .is_("deleted_at", "null")
         .execute()
         .data
     )

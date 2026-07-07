@@ -1,9 +1,8 @@
 "use client"
 
 import {
-  CartesianGrid,
-  LabelList,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -11,104 +10,179 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { useInView } from "@/hooks/use-in-view"
+import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import type { CompetitorPoint } from "@/lib/report-types"
 import { chart, ChartTooltip } from "./chart-theme"
 
-function Dot({ cx, cy, fill, r }: { cx?: number; cy?: number; fill: string; r: number }) {
-  if (cx === undefined || cy === undefined) return null
-  return <circle cx={cx} cy={cy} r={r} fill={fill} stroke="#FFFFFF" strokeWidth={1.5} />
+/*
+ * Hand-placed label offsets for the sample's points so nothing overlaps.
+ * Unknown names (real reports) get the safe below-point default.
+ */
+const LABEL_POS: Record<string, { dx: number; dy: number; anchor: "start" | "middle" | "end" }> = {
+  Ridgeline: { dx: 0, dy: 30, anchor: "middle" },
+  "Copper Kettle": { dx: 6, dy: -12, anchor: "end" },
 }
 
-export function PositioningScatter({ points }: { points: CompetitorPoint[] }) {
-  const you = points.filter((p) => p.isYou)
-  const rest = points.filter((p) => !p.isYou)
+type Highlight = { x1: number; x2: number; y1: number; y2: number; title: string; note?: string }
 
+function PointWithLabel(props: {
+  cx?: number
+  cy?: number
+  payload?: CompetitorPoint
+  index?: number
+  animate?: boolean
+}) {
+  const { cx, cy, payload, index = 0, animate = false } = props
+  if (cx === undefined || cy === undefined || !payload) return null
+  const pos = LABEL_POS[payload.name] ?? { dx: 0, dy: 22, anchor: "middle" as const }
+  const style = animate
+    ? {
+        opacity: 0,
+        animation: `vantage-chart-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
+        animationDelay: `${String(index * 90)}ms`,
+      }
+    : undefined
+  if (payload.isYou) {
+    return (
+      <g style={style}>
+        <circle cx={cx} cy={cy} r={16} fill={chart.forest} fillOpacity={0.12} />
+        <circle cx={cx} cy={cy} r={8} fill={chart.forest} stroke="#FFFFFF" strokeWidth={2} />
+        <text
+          x={cx + pos.dx}
+          y={cy + pos.dy}
+          textAnchor={pos.anchor}
+          style={{ fill: chart.forest, fontFamily: chart.font, fontSize: 12.5, fontWeight: 700 }}
+        >
+          {payload.name} (you)
+        </text>
+      </g>
+    )
+  }
   return (
-    <figure>
-      <div className="h-[360px] w-full sm:h-[420px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 28, right: 36, bottom: 12, left: 12 }}>
-            <CartesianGrid stroke={chart.hairline} strokeDasharray="3 4" />
-            {/* the ownable whitespace: fresh, mid-premium */}
-            <ReferenceArea
-              x1={4.4}
-              x2={7.2}
-              y1={7.4}
-              y2={10}
-              fill={chart.forest}
-              fillOpacity={0.05}
-              stroke={chart.forest}
-              strokeOpacity={0.25}
-              strokeDasharray="4 4"
-            />
-            <XAxis
-              type="number"
-              dataKey="price"
-              domain={[1, 10]}
-              tick={false}
-              axisLine={{ stroke: chart.hairline }}
-              tickLine={false}
-            />
-            <YAxis
-              type="number"
-              dataKey="freshness"
-              domain={[1, 10]}
-              tick={false}
-              axisLine={{ stroke: chart.hairline }}
-              tickLine={false}
-              width={12}
-            />
-            <Tooltip
-              cursor={{ stroke: chart.hairline, strokeDasharray: "3 3" }}
-              content={
-                <ChartTooltip
-                  title={(d) => String(d.name)}
-                  rows={(d) => [
-                    { label: "Price position", value: `${String(d.price)} / 10` },
-                    { label: "Freshness & craft", value: `${String(d.freshness)} / 10` },
-                  ]}
-                />
-              }
-            />
-            <Scatter data={rest} shape={<Dot fill={chart.muted} r={7} />} isAnimationActive={false}>
-              <LabelList
-                dataKey="name"
-                position="top"
-                offset={10}
-                style={{ fill: chart.muted, fontFamily: chart.font, fontSize: 11 }}
-              />
-            </Scatter>
-            <Scatter data={you} shape={<Dot fill={chart.forest} r={10} />} isAnimationActive={false}>
-              <LabelList
-                dataKey="name"
-                position="top"
-                offset={12}
-                style={{ fill: chart.forest, fontFamily: chart.font, fontSize: 12, fontWeight: 700 }}
-              />
-            </Scatter>
-          </ScatterChart>
-        </ResponsiveContainer>
-      </div>
-      <figcaption className="mt-2 flex items-center justify-between gap-4 px-1">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          Price position: value → premium
+    <g style={style}>
+      <circle cx={cx} cy={cy} r={5.5} fill={chart.muted} fillOpacity={0.85} stroke="#FFFFFF" strokeWidth={1.5} />
+      <text
+        x={cx + pos.dx}
+        y={cy + pos.dy}
+        textAnchor={pos.anchor}
+        style={{ fill: chart.muted, fontFamily: chart.font, fontSize: 11 }}
+      >
+        {payload.name}
+      </text>
+    </g>
+  )
+}
+
+function HighlightLabel(props: {
+  title: string
+  note?: string
+  viewBox?: { x?: number; y?: number; width?: number; height?: number }
+}) {
+  const { x = 0, y = 0, width = 0 } = props.viewBox ?? {}
+  const cx = x + width / 2
+  return (
+    <g>
+      <text
+        x={cx}
+        y={y + 18}
+        textAnchor="middle"
+        style={{ fill: chart.forest, fontFamily: chart.font, fontSize: 11.5, fontWeight: 700 }}
+      >
+        {props.title}
+      </text>
+      {props.note ? (
+        <text
+          x={cx}
+          y={y + 32}
+          textAnchor="middle"
+          style={{ fill: chart.forest, fontFamily: chart.font, fontSize: 11 }}
+        >
+          {props.note}
+        </text>
+      ) : null}
+    </g>
+  )
+}
+
+export function PositioningScatter({
+  points,
+  xLabel,
+  yLabel,
+  highlight,
+}: {
+  points: CompetitorPoint[]
+  xLabel: string
+  yLabel: string
+  highlight?: Highlight
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>()
+  const reduced = useReducedMotion()
+  return (
+    <figure ref={ref}>
+      <div className="relative h-[380px] w-full sm:h-[430px]">
+        <span className="absolute left-1 top-0 z-10 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          ↑ {yLabel}
         </span>
+        {inView ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <ScatterChart margin={{ top: 16, right: 28, bottom: 12, left: 12 }}>
+              {/* quadrant hint: one faint midline each way, no grid */}
+              <ReferenceLine x={5} stroke={chart.hairline} />
+              <ReferenceLine y={5} stroke={chart.hairline} />
+              {highlight ? (
+                <ReferenceArea
+                  x1={highlight.x1}
+                  x2={highlight.x2}
+                  y1={highlight.y1}
+                  y2={highlight.y2}
+                  fill={chart.forest}
+                  fillOpacity={0.05}
+                  stroke={chart.forest}
+                  strokeOpacity={0.3}
+                  strokeDasharray="5 5"
+                  label={<HighlightLabel title={highlight.title} note={highlight.note} />}
+                />
+              ) : null}
+              <XAxis
+                type="number"
+                dataKey="x"
+                domain={[0, 10]}
+                tick={false}
+                axisLine={{ stroke: chart.hairline }}
+                tickLine={false}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                domain={[0, 10]}
+                tick={false}
+                axisLine={{ stroke: chart.hairline }}
+                tickLine={false}
+                width={12}
+              />
+              <Tooltip
+                cursor={false}
+                content={
+                  <ChartTooltip
+                    title={(d) => String(d.name)}
+                    rows={(d) => [
+                      { label: xLabel, value: `${String(d.x)} / 10` },
+                      { label: yLabel, value: `${String(d.y)} / 10` },
+                    ]}
+                  />
+                }
+              />
+              <Scatter data={points} shape={<PointWithLabel animate={!reduced} />} isAnimationActive={false} />
+            </ScatterChart>
+          </ResponsiveContainer>
+        ) : null}
+      </div>
+      <figcaption className="mt-2 px-1 text-right">
         <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          ↑ Perceived freshness &amp; craft
+          {xLabel} →
         </span>
       </figcaption>
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 px-1">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-full bg-forest" /> You (recommended)
-        </span>
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#6B6B63]" /> Competitors
-        </span>
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span className="h-2.5 w-4 rounded-[3px] border border-dashed border-forest/40 bg-forest/5" /> Open
-          territory
-        </span>
-      </div>
     </figure>
   )
 }

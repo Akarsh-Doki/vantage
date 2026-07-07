@@ -46,8 +46,37 @@ def test_search_web_returns_title_url_content(fake_tavily: MagicMock) -> None:
         },
     ]
     fake_tavily.search.assert_called_once_with(
-        "acme competitors", max_results=2, timeout=search._TIMEOUT_SECONDS
+        "acme competitors",
+        max_results=2,
+        timeout=search._TIMEOUT_SECONDS,
+        exclude_domains=list(search.BLOCKED_DOMAINS),
     )
+
+
+def test_blocked_domains_are_filtered_even_if_tavily_returns_them(
+    fake_tavily: MagicMock,
+) -> None:
+    # Belt and braces: the API is asked to exclude these, and the response is
+    # re-filtered in case it does not.
+    fake_tavily.search.return_value = {
+        "results": [
+            {"title": "Quora", "url": "https://www.quora.com/anvils", "content": "chatter"},
+            {"title": "Sub-forum", "url": "https://old.reddit.com/r/anvils", "content": "chatter"},
+            {"title": "Growjo", "url": "https://growjo.com/company/acme", "content": "scraped"},
+            {"title": "Trade", "url": "https://adweek.com/anvils", "content": "coverage"},
+        ]
+    }
+
+    results = search.search_web("anvil market")
+
+    assert [r["url"] for r in results] == ["https://adweek.com/anvils"]
+
+
+def test_is_blocked_source_covers_subdomains_and_bad_urls() -> None:
+    assert search.is_blocked_source("https://www.quora.com/q") is True
+    assert search.is_blocked_source("https://es.quora.com/q") is True
+    assert search.is_blocked_source("https://quorum.example/q") is False  # not a subdomain
+    assert search.is_blocked_source("not a url") is False
 
 
 def test_identical_search_is_served_from_cache(fake_tavily: MagicMock) -> None:

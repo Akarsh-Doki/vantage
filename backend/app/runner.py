@@ -122,7 +122,12 @@ def execute_run(
     business: dict[str, Any],
     mode: Literal["full", "sample"] = "full",
 ) -> None:
-    """Drive a persisted run to the human gate or completion (background task)."""
+    """Drive a persisted run to the human gate or completion (background task).
+
+    Both kinds persist their deliverable via insert_report on completion, so a
+    finished run (sample included) can always be reopened from the dashboard.
+    Sample mode never interrupts (no human gate) and, because the user's one
+    free sample was claimed before this task started, a failure refunds it."""
     meter = _RunMeter(user_id, run_id)
     try:
         db.update_run(run_id, user_id, {"status": "running", "started_at": db.now_iso()})
@@ -173,6 +178,9 @@ def execute_run(
                 **totals,
             },
         )
+        if mode == "sample":
+            # They got nothing, so give the one free sample back (rule 6).
+            db.release_free_sample(user_id)
 
 
 def resume_run(
@@ -213,37 +221,3 @@ def resume_run(
         )
 
 
-def run_sample(run_id: str, user_id: str, business: dict[str, Any]) -> dict[str, Any]:
-    """Run the cheap preview and return its result. The run row is persisted
-    (so samples are countable for the global cap and auditable), but no report
-    deliverable is saved — samples are preview-only. Marks the run failed and
-    re-raises on error so the caller can refund the free-sample quota."""
-    meter = _RunMeter(user_id, run_id)
-    try:
-        db.update_run(run_id, user_id, {"status": "running", "started_at": db.now_iso()})
-        with usage_recording(meter):
-            final = _graph().invoke(_initial_state(business, "sample"), _config(run_id))
-        result = dict(final.get("result") or {})
-        totals = meter.totals()
-        warn_if_expensive(run_id, totals["cost_cents"])
-        db.update_run(
-            run_id,
-            user_id,
-            {"status": "completed", "current_step": "done", "finished_at": db.now_iso(), **totals},
-        )
-    except Exception as exc:
-        logger.exception("sample run %s failed", run_id)
-        totals = meter.totals()
-        warn_if_expensive(run_id, totals["cost_cents"])
-        db.update_run(
-            run_id,
-            user_id,
-            {
-                "status": "failed",
-                "error": _public_error(exc),
-                "finished_at": db.now_iso(),
-                **totals,
-            },
-        )
-        raise
-    return result

@@ -345,6 +345,31 @@ def _fake_model_text(model: str, system: str, user: str) -> str:
         return json.dumps([concept for _ in range(4)])
     if "eval judge" in system:
         return "SCORE: 4\nGrounded and on-strategy."
+    if "marketing strategist" in system:
+        # Synthesis and strategy honor the structured-JSON contract, with the
+        # optional visual blocks so the validators run in the dry-run too.
+        return json.dumps(
+            {
+                "headline": "Dry-run: own the gap",
+                "paragraphs": [{"text": "Dry-run paragraph.", "cites": [1]}],
+                "competitor_map": {
+                    "x_label": "Price",
+                    "y_label": "Quality",
+                    "points": [
+                        {"name": "You", "x": 5, "y": 8, "is_you": True},
+                        {"name": "Rival A", "x": 7, "y": 5},
+                        {"name": "Rival B", "x": 3, "y": 4},
+                    ],
+                    "cites": [1],
+                },
+                "channels": {
+                    "items": [
+                        {"name": "Video", "weight": 60, "rationale": "dry-run"},
+                        {"name": "Email", "weight": 40, "rationale": "dry-run"},
+                    ]
+                },
+            }
+        )
     return "dry-run text output"
 
 

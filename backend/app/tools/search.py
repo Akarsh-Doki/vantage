@@ -5,12 +5,19 @@ process, so repeated identical searches in one pipeline run don't re-charge
 the Tavily account. Failures are logged and return [] (CLAUDE.md rule 6:
 optional data sources fail quietly, never crash a report); failures are never
 cached, so a transient error doesn't poison the rest of the run.
+
+Source-quality floor: user-generated, Q&A, forum, and content-farm domains are
+never acceptable sources for a cited report. They are excluded in the Tavily
+request AND re-filtered from the response (belt and braces, in case the API
+ignores or partially applies the exclusion). Finer credibility RANKING among
+the surviving results lives in app/graph.py next to the research agents.
 """
 
 import asyncio
 import logging
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from tavily import TavilyClient
 
@@ -22,9 +29,45 @@ logger = logging.getLogger(__name__)
 # consistent with the 10s timeout on the Go fetcher call (safe_fetch).
 _TIMEOUT_SECONDS = 10.0
 
+# Never cite these. Quora and Growjo appeared in a real run; the rest are the
+# same class: forums, Q&A, social boards, content farms, scraped aggregators.
+BLOCKED_DOMAINS: tuple[str, ...] = (
+    "quora.com",
+    "reddit.com",
+    "answers.com",
+    "answers.yahoo.com",
+    "ask.com",
+    "stackexchange.com",
+    "stackoverflow.com",
+    "wikihow.com",
+    "ehow.com",
+    "hubpages.com",
+    "ezinearticles.com",
+    "fandom.com",
+    "pinterest.com",
+    "tumblr.com",
+    "growjo.com",
+)
+
 # Rule 7: the backend is a long-lived process — the cache must not grow forever.
 _CACHE_MAX_ENTRIES = 1024
 _cache: dict[tuple[str, int], list[dict[str, str]]] = {}
+
+
+def source_host(url: str) -> str:
+    """Lowercased host without a www. prefix; "" for unparseable URLs."""
+    try:
+        return urlparse(url).netloc.lower().removeprefix("www.")
+    except ValueError:
+        return ""
+
+
+def is_blocked_source(url: str) -> bool:
+    """True when the URL belongs to a blocked domain (subdomains included)."""
+    host = source_host(url)
+    if not host:
+        return False
+    return any(host == domain or host.endswith(f".{domain}") for domain in BLOCKED_DOMAINS)
 
 
 def clear_cache() -> None:
@@ -33,7 +76,8 @@ def clear_cache() -> None:
 
 
 def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
-    """Search the web via Tavily, returning [{title, url, content}, ...].
+    """Search the web via Tavily, returning [{title, url, content}, ...] with
+    blocked (UGC/forum/content-farm) domains removed.
 
     Never raises: on a missing API key or any Tavily error it logs and
     returns an empty list.
@@ -50,7 +94,10 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
     try:
         client = TavilyClient(api_key=api_key)
         response: dict[str, Any] = client.search(
-            query, max_results=max_results, timeout=_TIMEOUT_SECONDS
+            query,
+            max_results=max_results,
+            timeout=_TIMEOUT_SECONDS,
+            exclude_domains=list(BLOCKED_DOMAINS),
         )
         results: list[dict[str, str]] = [
             {
@@ -59,6 +106,7 @@ def search_web(query: str, max_results: int = 5) -> list[dict[str, str]]:
                 "content": item.get("content") or "",
             }
             for item in response.get("results", [])
+            if not is_blocked_source(item.get("url") or "")
         ]
     except Exception:
         logger.exception("Tavily search failed for query %r — returning no results", query)

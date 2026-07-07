@@ -33,16 +33,16 @@ BODY: dict[str, Any] = {
     "competitor_urls": ["https://rival-a.example"],
 }
 
+# Mirrors the structured deliverable finalize() assembles: sectioned prose
+# with numeric cites and a numbered source list.
 RESULT: dict[str, Any] = {
-    "brief": {"text": "the brief"},
-    "strategy": {"text": "the strategy"},
-    "concepts": [{"title": "Safe bet: founder diary", "score": 9.1}],
-    "sources": ["https://rival-a.example/pricing"],
-}
-SAMPLE_RESULT: dict[str, Any] = {
-    **RESULT,
-    "preview": True,
-    "upgrade_hint": "Run a full campaign for the rest.",
+    "brief": {
+        "headline": "Acme: own the overnight anvil",
+        "paragraphs": [{"text": "Rivals sell premium anvils.", "cites": [1]}],
+    },
+    "strategy": {"paragraphs": [{"text": "Lead with speed.", "cites": [1]}]},
+    "concepts": [{"title": "Safe bet: founder diary", "score": 9.1, "source_n": 1}],
+    "sources": [{"n": 1, "title": "Rival A pricing", "url": "https://rival-a.example/pricing"}],
 }
 
 
@@ -57,6 +57,8 @@ def _auth(user_id: str, **kwargs: int) -> dict[str, str]:
 
 
 class FakeGraph:
+    """Stands in for the compiled graph: both kinds run through stream()."""
+
     def __init__(self) -> None:
         self.interrupt = False
         self.fail = False
@@ -68,13 +70,15 @@ class FakeGraph:
         self, state: dict[str, Any], config: dict[str, Any], stream_mode: str = "updates"
     ) -> Iterator[dict[str, Any]]:
         assert stream_mode == "updates"
-        assert state["mode"] == "full"
+        assert state["mode"] in ("full", "sample")
+        if state["mode"] == "sample":
+            self.sample_states.append(state)
         self.stream_configs.append(config)
         if self.fail:
             raise RuntimeError("model exploded")
         yield {"planner": {"plan": {}}}
         yield {"competitor_agent": {}}
-        if self.interrupt:
+        if self.interrupt and state["mode"] == "full":
             yield {"__interrupt__": (object(),)}
             return
         yield {"finalize": {"result": RESULT}}
@@ -84,13 +88,9 @@ class FakeGraph:
         return SimpleNamespace(values={"result": RESULT})
 
     def invoke(self, value: Any, config: dict[str, Any]) -> dict[str, Any]:
-        if isinstance(value, Command):
-            self.resumes.append((value, config))
-            return {"result": RESULT}
-        if self.fail:
-            raise RuntimeError("model exploded")
-        self.sample_states.append(value)
-        return {"result": SAMPLE_RESULT}
+        assert isinstance(value, Command)  # only the approve resume uses invoke now
+        self.resumes.append((value, config))
+        return {"result": RESULT}
 
 
 class FakeStore:
@@ -127,12 +127,24 @@ class FakeStore:
         if run and run["user_id"] == user_id:
             run.update(fields)
 
+    def _with_project(self, run: dict[str, Any]) -> dict[str, Any]:
+        """Mimic the PostgREST embed of projects(business_name)."""
+        project = self.projects.get(run["project_id"]) or {}
+        return {**run, "projects": {"business_name": project.get("name")}}
+
     def get_run(self, run_id: str, user_id: str) -> dict[str, Any] | None:
         run = self.runs.get(run_id)
-        return dict(run) if run and run["user_id"] == user_id else None
+        return self._with_project(run) if run and run["user_id"] == user_id else None
 
     def list_runs(self, user_id: str) -> list[dict[str, Any]]:
-        return [dict(r) for r in self.runs.values() if r["user_id"] == user_id]
+        return [self._with_project(r) for r in self.runs.values() if r["user_id"] == user_id]
+
+    def rename_run(self, run_id: str, user_id: str, name: str) -> bool:
+        run = self.runs.get(run_id)
+        if run and run["user_id"] == user_id:
+            run["display_name"] = name
+            return True
+        return False
 
     def insert_report(
         self, user_id: str, project_id: str, run_id: str, kind: str, result: dict[str, Any]
@@ -155,11 +167,11 @@ class FakeStore:
             return dict(report)
         return None
 
-    def deleted_report_run_ids(self, user_id: str) -> set[str]:
+    def report_run_ids(self, user_id: str) -> set[str]:
         return {
             run_id
             for run_id, report in self.reports.items()
-            if report["user_id"] == user_id and report["deleted_at"] is not None
+            if report["user_id"] == user_id and report["deleted_at"] is None
         }
 
     def soft_delete_report(self, run_id: str, user_id: str) -> bool:
@@ -218,9 +230,10 @@ _DB_API = (
     "update_run",
     "get_run",
     "list_runs",
+    "rename_run",
     "insert_report",
     "get_report",
-    "deleted_report_run_ids",
+    "report_run_ids",
     "soft_delete_report",
     "get_profile",
     "count_sample_runs_today",
@@ -274,7 +287,11 @@ def test_valid_request_creates_queued_run_and_completes(
     assert status.status_code == 200
     body = status.json()
     assert body["status"] == "completed"
-    assert body["report"]["brief"] == {"text": "the brief"}
+    # The stored deliverable is the structured schema: sectioned paragraphs
+    # with numeric cites and a numbered source list, no markdown text blobs.
+    assert body["report"]["brief"] == RESULT["brief"]
+    assert body["report"]["strategy"] == RESULT["strategy"]
+    assert body["report"]["sources"] == RESULT["sources"]
 
 
 def test_unauthenticated_requests_are_401(
@@ -320,21 +337,76 @@ def test_over_limit_competitor_urls_rejected(
     assert store.runs == {}
 
 
-def test_free_sample_gate_rejects_second_sample(
+def test_sample_runs_async_persists_report_and_is_reopenable(
     api: tuple[TestClient, FakeStore, FakeGraph],
 ) -> None:
     client, store, fake_graph = api
 
     first = client.post("/sample", json=BODY, headers=_auth(USER_A))
-    assert first.status_code == 200
+
+    # Async like full runs: 202 + run_id immediately; the frontend polls.
+    assert first.status_code == 202
     payload = first.json()
-    assert payload["preview"] is True
-    assert payload["upgrade_hint"]
+    run_id = payload["run_id"]
+    assert payload["status"] == "queued"
     assert fake_graph.sample_states[0]["mode"] == "sample"
     assert store.profiles[USER_A]["free_sample_used"] is True
+    # After the background task: completed AND the deliverable is stored, so
+    # reopening from the dashboard works (this was the old 404 root cause).
+    assert store.runs[run_id]["status"] == "completed"
+    assert store.reports[run_id]["kind"] == "sample"
+    detail = client.get(f"/reports/{run_id}", headers=_auth(USER_A))
+    assert detail.status_code == 200
+    assert detail.json()["kind"] == "sample"
+    assert detail.json()["report"]["brief"] == RESULT["brief"]
+    # The listing offers it for reopening.
+    listing = client.get("/reports", headers=_auth(USER_A)).json()
+    assert [r["run_id"] for r in listing["runs"]] == [run_id]
 
     second = client.post("/sample", json=BODY, headers=_auth(USER_A))
     assert second.status_code == 402
+
+
+def test_failed_sample_is_saved_failed_and_quota_refunded(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, fake_graph = api
+    fake_graph.fail = True
+
+    response = client.post("/sample", json=BODY, headers=_auth(USER_A))
+
+    assert response.status_code == 202
+    run_id = response.json()["run_id"]
+    # The run row survives with a clean failed state (reopening shows "failed",
+    # never a 404), and the one free sample is given back.
+    run = store.runs[run_id]
+    assert run["status"] == "failed"
+    assert "RuntimeError" in run["error"]
+    assert store.profiles[USER_A]["free_sample_used"] is False
+    detail = client.get(f"/reports/{run_id}", headers=_auth(USER_A))
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "failed"
+    # Failed runs stay visible in the list so the user can see what happened.
+    listing = client.get("/reports", headers=_auth(USER_A)).json()
+    assert [r["run_id"] for r in listing["runs"]] == [run_id]
+
+
+def test_completed_run_without_stored_report_is_hidden_from_list(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    # A legacy sample run from before deliverables were persisted: completed,
+    # but nothing in the reports table. Listing must not offer a dead link.
+    client, store, _ = api
+    project_id = store.create_project(USER_A, {"name": "Acme", "website_url": "https://a.example"})
+    run_id = store.create_run(USER_A, project_id, "sample")
+    store.update_run(run_id, USER_A, {"status": "completed"})
+
+    listing = client.get("/reports", headers=_auth(USER_A)).json()
+
+    assert listing["runs"] == []
+    # Its detail GET still 404s (nothing was ever stored), but the dashboard
+    # no longer routes anyone there.
+    assert client.get(f"/reports/{run_id}", headers=_auth(USER_A)).status_code == 404
 
 
 def test_graph_failure_marks_run_failed_with_readable_error(
@@ -380,6 +452,47 @@ def test_approve_resumes_only_awaiting_review_runs(
         f"/reports/{run_id}/approve", json={"approved": True}, headers=_auth(USER_A)
     )
     assert again.status_code == 409
+
+
+def test_rename_persists_and_flows_into_list_and_detail(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, _, _ = api
+    run_id = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+
+    # Before a rename, the name falls back to the project's business name.
+    listing = client.get("/reports", headers=_auth(USER_A)).json()
+    assert listing["runs"][0]["name"] == "Acme Anvils"
+
+    renamed = client.patch(
+        f"/reports/{run_id}", json={"name": "Spring push"}, headers=_auth(USER_A)
+    )
+
+    assert renamed.status_code == 200
+    assert renamed.json() == {"run_id": run_id, "name": "Spring push"}
+    assert client.get("/reports", headers=_auth(USER_A)).json()["runs"][0]["name"] == "Spring push"
+    assert client.get(f"/reports/{run_id}", headers=_auth(USER_A)).json()["name"] == "Spring push"
+
+
+def test_rename_is_owner_scoped_and_validated(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    run_id = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+
+    # Another user's rename attempt is a 404 (indistinguishable from missing).
+    other = client.patch(f"/reports/{run_id}", json={"name": "hijack"}, headers=_auth(USER_B))
+    assert other.status_code == 404
+    assert store.runs[run_id].get("display_name") is None
+
+    # Unauthenticated: 401. Invalid names: 422.
+    assert client.patch(f"/reports/{run_id}", json={"name": "x"}).status_code == 401
+    empty = client.patch(f"/reports/{run_id}", json={"name": "   "}, headers=_auth(USER_A))
+    assert empty.status_code == 422
+    too_long = client.patch(
+        f"/reports/{run_id}", json={"name": "x" * 121}, headers=_auth(USER_A)
+    )
+    assert too_long.status_code == 422
 
 
 def test_cost_cents_uses_model_rates() -> None:
@@ -441,7 +554,7 @@ def test_global_sample_cap_returns_friendly_capacity(
     monkeypatch.setenv("DAILY_SAMPLE_CAP", "1")
 
     first = client.post("/sample", json=BODY, headers=_auth(USER_A))
-    assert first.status_code == 200  # fills the single daily slot
+    assert first.status_code == 202  # fills the single daily slot
 
     # A different user hits the account-level cap: friendly 503, not a 500,
     # and their one free sample is NOT consumed.

@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr"
 
 /**
  * Server Supabase client for Server Components and Route Handlers. Reads the
- * auth session from cookies. Anon key only — no service keys anywhere in the
+ * auth session from cookies. Anon key only, no service keys anywhere in the
  * frontend.
  */
 export async function getSupabaseServerClient() {
@@ -11,7 +11,7 @@ export async function getSupabaseServerClient() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !anonKey) {
     throw new Error(
-      "Missing Supabase config — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local (see .env.local.example).",
+      "Missing Supabase config. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local (see .env.local.example).",
     )
   }
   const cookieStore = await cookies()

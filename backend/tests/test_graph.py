@@ -127,6 +127,49 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
                 text = json.dumps([_eval() for _ in range(n)])
         elif "creative director" in system:
             text = calls.creative_responses.pop(0) if calls.creative_responses else CONCEPTS_JSON
+        elif "marketing strategist" in system:
+            # Synthesis and strategy honor the structured-JSON contract, and
+            # (full mode) may attach the optional visual data blocks.
+            text = json.dumps(
+                {
+                    "headline": "Acme Anvils: own the overnight anvil",
+                    "paragraphs": [
+                        {"text": "Rivals sell premium anvils.", "cites": [1]},
+                        {"text": "Speed is the open gap.", "cites": [1, 2]},
+                    ],
+                    "competitor_map": {
+                        "x_label": "Price: value to premium",
+                        "y_label": "Delivery speed",
+                        "points": [
+                            {"name": "Acme Anvils", "x": 5, "y": 9, "is_you": True},
+                            {"name": "Rival A", "x": 8.2, "y": 4},
+                            {"name": "Rival B", "x": 3.1, "y": 6.5},
+                        ],
+                        "cites": [1, 2],
+                    },
+                    "audience_segments": {
+                        "segments": [
+                            {"name": "Pro smiths", "share": 55},
+                            {"name": "Hobbyists", "share": 30},
+                        ],
+                        "cites": [2],
+                    },
+                    "channels": {
+                        "items": [
+                            {"name": "Short-form video", "weight": 50, "rationale": "native proof"},
+                            {"name": "Local events", "weight": 30, "rationale": "hands-on trial"},
+                            {"name": "Email", "weight": 20, "rationale": "owned cadence"},
+                        ]
+                    },
+                    "funnel": {
+                        "stages": [
+                            {"name": "Visit", "share": 100, "detail": "lands on site"},
+                            {"name": "Trial", "share": 40, "detail": "books a demo"},
+                        ],
+                        "cites": [1],
+                    },
+                }
+            )
         else:
             # Findings text: carries the trend the mocked concepts claim to use.
             text = "Short-form POV video is surging with local shops right now."
@@ -198,8 +241,25 @@ def test_sample_mode_returns_preview_from_competitor_research_only(
     assert result["preview"] is True
     assert result["upgrade_hint"]
     assert len(out["concepts"]) == 1  # exactly ONE concept in sample mode
-    # Only the competitor agent ran, with the sample search cap.
-    assert [s["max_results"] for s in pipeline.searches] == [2]
+    # The sample deliverable is the same structured schema as a full report:
+    # sectioned paragraphs with numeric cites and a numbered source list,
+    # never markdown blobs or inline [source: url] markers.
+    assert result["brief"]["paragraphs"]
+    assert result["sources"][0] == {
+        "n": 1,
+        "title": "Rival A pricing",
+        "url": "https://rival-a.example/pricing",
+    }
+    assert "[source:" not in json.dumps(result)
+    # The sample never carries visual data blocks (full-mode only).
+    assert "competitor_map" not in result["brief"]
+    assert "audience_segments" not in result["brief"]
+    assert "channels" not in result["strategy"]
+    assert "funnel" not in result["strategy"]
+    # Only the competitor agent ran, over-fetching candidates for quality
+    # ranking on top of the sample finding cap.
+    expected_fetch = graph._SEARCH_RESULTS["sample"] + graph._EXTRA_SEARCH_CANDIDATES
+    assert [s["max_results"] for s in pipeline.searches] == [expected_fetch]
     # Sample mode fetches only the top competitor page.
     assert pipeline.fetches == ["https://rival-a.example/pricing"]
     # Every finding carries its source.
@@ -229,8 +289,9 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
 
     paused = g.invoke(_initial("full"), config)
 
-    # All three research agents ran at the full search cap.
-    assert sorted(s["max_results"] for s in pipeline.searches) == [4, 4, 4]
+    # All three research agents ran, over-fetching candidates for ranking.
+    expected_fetch = graph._SEARCH_RESULTS["full"] + graph._EXTRA_SEARCH_CANDIDATES
+    assert sorted(s["max_results"] for s in pipeline.searches) == [expected_fetch] * 3
     # The url-less search result was dropped: 3 agents x 2 cited findings.
     assert len(paused["research"]) == 6
     assert all(f["source_url"] for f in paused["research"])
@@ -254,11 +315,26 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
 
     assert final["review"]["human"] == {"approved": True}
     assert "preview" not in final["result"]
-    assert final["result"]["concepts"] == final["concepts"]
+    # The deliverable carries the numbered citation list (n, title, url)...
     assert final["result"]["sources"] == [
-        "https://rival-a.example/pricing",
-        "https://rival-b.example/about",
+        {"n": 1, "title": "Rival A pricing", "url": "https://rival-a.example/pricing"},
+        {"n": 2, "title": "Rival B about", "url": "https://rival-b.example/about"},
     ]
+    # ...the structured brief parsed from the model's JSON contract...
+    assert final["brief"]["headline"] == "Acme Anvils: own the overnight anvil"
+    assert final["brief"]["paragraphs"][1] == {"text": "Speed is the open gap.", "cites": [1, 2]}
+    assert final["strategy"]["paragraphs"]
+    # ...the validated visual data blocks (full mode only, always cited)...
+    assert len(final["brief"]["competitor_map"]["points"]) == 3
+    assert final["brief"]["competitor_map"]["cites"] == [1, 2]
+    assert final["brief"]["audience_segments"]["segments"][0] == {"name": "Pro smiths", "share": 55}
+    channel_items = final["strategy"]["channels"]["items"]
+    assert sum(c["weight"] for c in channel_items) == 100
+    assert final["strategy"]["funnel"]["stages"][0]["share"] == 100
+    # ...and concepts whose grounded_in URL was resolved to source_n in code.
+    result_concepts = final["result"]["concepts"]
+    assert [c["title"] for c in result_concepts] == [c["title"] for c in final["concepts"]]
+    assert all(c["source_n"] == 1 for c in result_concepts)  # all grounded in rival-a
 
 
 def test_review_loop_caps_and_keeps_best_when_all_rejected(pipeline: PipelineCalls) -> None:
@@ -619,3 +695,270 @@ def test_parse_concepts_placeholder_only_when_nothing_salvageable() -> None:
 
     assert len(out) == 1
     assert out[0]["title"] == "(unparsed creative output)"
+
+
+# --- presentation-ready output (structured sections, clean text) ------------------
+
+
+def test_clean_text_strips_markdown_and_emoji() -> None:
+    assert graph._clean_text("## **Critical** finding ⚠️ with `code`") == (
+        "Critical finding with code"
+    )
+    assert graph._clean_text("- bullet point") == "bullet point"
+    assert graph._clean_text("2. numbered step 🚀") == "numbered step"
+    assert graph._clean_text("plain text stays") == "plain text stays"
+
+
+def test_clean_text_normalizes_dashes_to_the_vantage_voice() -> None:
+    # Model prose sometimes arrives with em dashes; the report never shows them.
+    assert graph._clean_text("no hidden fees \u2014 come see for yourself") == (
+        "no hidden fees, come see for yourself"
+    )
+    assert graph._clean_text("open 9\u20135 daily") == "open 9 to 5 daily"
+
+
+def test_structured_prose_parses_json_contract_and_cleans_it() -> None:
+    sources = [
+        {"n": 1, "title": "A", "url": "https://a.example/page"},
+        {"n": 2, "title": "B", "url": "https://b.example"},
+    ]
+    reply = json.dumps(
+        {
+            "headline": "## Acme: own the gap",
+            "paragraphs": [
+                # duplicate and out-of-range cites, a stray inline marker, markdown
+                {"text": "**Bold** claim [source: https://a.example/page/].", "cites": [2, 2, 99]},
+                {"text": "", "cites": [1]},  # empty text is dropped
+            ],
+        }
+    )
+
+    out = graph._structured_prose(reply, sources)
+
+    assert out["headline"] == "Acme: own the gap"
+    assert out["paragraphs"] == [{"text": "Bold claim.", "cites": [2, 1]}]
+
+
+def test_structured_prose_falls_back_to_prose_with_inline_cites() -> None:
+    # A model that ignored the JSON contract: markdown headings, bullets, and
+    # inline [source: url] markers still become clean structured paragraphs.
+    sources = [{"n": 1, "title": "A", "url": "https://a.example"}]
+    text = "# Competitive read\nRivals claim premium [source: https://a.example].\n\n- next point"
+
+    out = graph._structured_prose(text, sources)
+
+    assert out["headline"] == ""
+    assert out["paragraphs"][0] == {"text": "Competitive read", "cites": []}
+    assert out["paragraphs"][1] == {"text": "Rivals claim premium.", "cites": [1]}
+    assert out["paragraphs"][2] == {"text": "next point", "cites": []}
+
+
+def test_numbered_sources_dedupe_and_fall_back_to_url_titles() -> None:
+    findings = [
+        {"text": "a", "source_url": "https://www.acme.example/blog/post/", "title": ""},
+        {"text": "b", "source_url": "https://www.acme.example/blog/post/"},
+        {"text": "c", "source_url": "https://other.example", "title": "Other Report"},
+    ]
+
+    out = graph._numbered_sources(findings)
+
+    assert out == [
+        {"n": 1, "title": "acme.example/blog/post", "url": "https://www.acme.example/blog/post/"},
+        {"n": 2, "title": "Other Report", "url": "https://other.example"},
+    ]
+
+
+def test_deliverable_prompts_forbid_fourth_wall_and_markdown(pipeline: PipelineCalls) -> None:
+    """Every prompt whose output a customer reads carries the voice rules:
+    no markdown, no emoji, and never narrating data gaps or limitations."""
+    g = graph.build_graph(MemorySaver())
+
+    g.invoke(_initial("full"), _config("t-voice"))
+
+    deliverable_calls = [
+        c
+        for c in pipeline.models
+        if "marketing strategist" in c["system"] or "creative director" in c["system"]
+    ]
+    assert len(deliverable_calls) >= 3  # synthesis, strategy, creative
+    for call in deliverable_calls:
+        assert "NEVER address the reader" in call["system"]
+        assert "'unable to complete'" in call["system"]
+        assert "'critical data limitation'" in call["system"]
+        assert "no emoji" in call["system"]
+        assert "never narrate" in call["system"]
+
+
+# --- source quality ----------------------------------------------------------------
+
+
+def test_select_results_blocks_ugc_and_ranks_credible_sources_first() -> None:
+    items = [
+        {"title": "Quora thread", "url": "https://www.quora.com/what-anvil", "content": "c"},
+        {"title": "Someone's blog", "url": "https://myblog.medium.com/anvils", "content": "c"},
+        {"title": "Rival site", "url": "https://rival-a.example/pricing", "content": "c"},
+        {"title": "Trade coverage", "url": "https://www.marketingdive.com/anvils", "content": "c"},
+        {"title": "Growjo stats", "url": "https://growjo.com/company/acme", "content": "c"},
+        {"title": "No url", "url": "", "content": "c"},
+    ]
+
+    out = graph._select_results(items, limit=3)
+
+    # Blocked UGC/aggregators never survive; trade press outranks the blog.
+    assert [i["url"] for i in out] == [
+        "https://www.marketingdive.com/anvils",
+        "https://rival-a.example/pricing",
+        "https://myblog.medium.com/anvils",
+    ]
+
+
+def test_source_quality_tiers() -> None:
+    assert graph._source_quality("https://www.mckinsey.com/report") == 2
+    assert graph._source_quality("https://research.university.edu/study") == 2
+    assert graph._source_quality("https://someone.substack.com/p/growth") == -2
+    assert graph._source_quality("https://rival-a.example/pricing") == 0
+
+
+def test_research_never_produces_findings_from_blocked_domains(
+    pipeline: PipelineCalls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        graph,
+        "search_web",
+        lambda query, max_results=5: [
+            {"title": "Quora", "url": "https://quora.com/q/anvils", "content": "forum chatter"},
+            {"title": "Reddit", "url": "https://reddit.com/r/anvils", "content": "forum chatter"},
+            {"title": "Trade", "url": "https://adweek.com/anvils", "content": "real coverage"},
+        ],
+    )
+    g = graph.build_graph(MemorySaver())
+
+    out = g.invoke(_initial("sample"), _config("t-blocked"))
+
+    urls = {f["source_url"] for f in out["research"]}
+    assert urls == {"https://adweek.com/anvils"}
+    # And therefore no blocked domain can ever appear in the citation list.
+    cited = [s["url"] for s in out["result"]["sources"]]
+    assert all("quora" not in url and "reddit" not in url for url in cited)
+
+
+def test_synthesis_prompts_carry_the_credibility_rule(pipeline: PipelineCalls) -> None:
+    g = graph.build_graph(MemorySaver())
+
+    g.invoke(_initial("full"), _config("t-credibility"))
+
+    synthesis_calls = [c for c in pipeline.models if "positioning-gap" in c["system"]]
+    assert synthesis_calls
+    assert all("Weigh findings by source credibility" in c["system"] for c in synthesis_calls)
+
+
+# --- optional visual data blocks ----------------------------------------------------
+
+
+def test_competitor_map_block_requires_cites_and_three_points() -> None:
+    valid = {
+        "x_label": "Price",
+        "y_label": "Speed",
+        "points": [
+            {"name": "A", "x": 1, "y": 2},
+            {"name": "B", "x": 3, "y": 4},
+            {"name": "You", "x": 5, "y": 6, "is_you": True},
+        ],
+        "cites": [1],
+    }
+    assert graph._competitor_map_block(valid, max_n=2) is not None
+    # No citations: dropped (a chart never renders unevidenced analysis).
+    assert graph._competitor_map_block({**valid, "cites": []}, max_n=2) is None
+    # Out-of-range citations only: dropped.
+    assert graph._competitor_map_block({**valid, "cites": [9]}, max_n=2) is None
+    # Two placeable points: dropped.
+    assert graph._competitor_map_block({**valid, "points": valid["points"][:2]}, max_n=2) is None
+    # Coordinates are clamped into 0..10.
+    clamped = graph._competitor_map_block(
+        {**valid, "points": [*valid["points"][:2], {"name": "C", "x": 40, "y": -3}]}, max_n=2
+    )
+    assert clamped is not None
+    assert clamped["points"][2] == {"name": "C", "x": 10.0, "y": 0.0, "is_you": False}
+
+
+def test_segments_block_rejects_impossible_shares() -> None:
+    valid = {"segments": [{"name": "A", "share": 60}, {"name": "B", "share": 30}], "cites": [1]}
+    block = graph._segments_block(valid, max_n=1)
+    assert block is not None
+    assert [s["share"] for s in block["segments"]] == [60, 30]
+    assert graph._segments_block({**valid, "cites": []}, max_n=1) is None
+    over = {"segments": [{"name": "A", "share": 90}, {"name": "B", "share": 80}], "cites": [1]}
+    assert graph._segments_block(over, max_n=1) is None
+
+
+def test_channels_block_normalizes_weights_to_100() -> None:
+    block = graph._channels_block(
+        {
+            "items": [
+                {"name": "Video", "weight": 5, "rationale": "r"},
+                {"name": "Email", "weight": 3, "rationale": "r"},
+                {"name": "Events", "weight": 3, "rationale": "r"},
+            ]
+        }
+    )
+    assert block is not None
+    assert sum(c["weight"] for c in block["items"]) == 100
+    assert block["items"][0]["name"] == "Video"  # sorted, heaviest first
+    assert graph._channels_block({"items": [{"name": "Only", "weight": 1}]}) is None
+
+
+def test_funnel_block_requires_cites_and_descending_shares() -> None:
+    valid = {
+        "stages": [
+            {"name": "Visit", "share": 100, "detail": "d"},
+            {"name": "Trial", "share": 40, "detail": "d"},
+        ],
+        "cites": [1],
+    }
+    assert graph._funnel_block(valid, max_n=1) is not None
+    assert graph._funnel_block({**valid, "cites": []}, max_n=1) is None
+    widening = {
+        "stages": [
+            {"name": "Visit", "share": 40, "detail": "d"},
+            {"name": "Trial", "share": 100, "detail": "d"},
+        ],
+        "cites": [1],
+    }
+    assert graph._funnel_block(widening, max_n=1) is None
+
+
+def test_visual_block_prompts_are_full_mode_only() -> None:
+    assert '"competitor_map"' in graph._SYNTHESIS_SYSTEM_FULL
+    assert '"competitor_map"' not in graph._SYNTHESIS_SYSTEM_SAMPLE
+    assert '"funnel"' in graph._STRATEGY_SYSTEM_FULL
+    assert '"funnel"' not in graph._STRATEGY_SYSTEM_SAMPLE
+
+
+def test_creative_and_reviewer_prompts_enforce_concept_coherence(
+    pipeline: PipelineCalls,
+) -> None:
+    g = graph.build_graph(MemorySaver())
+
+    g.invoke(_initial("full"), _config("t-coherence"))
+
+    creative = next(c for c in pipeline.models if "creative director" in c["system"])
+    assert "COHERENCE" in creative["system"]
+    assert "describe the SAME single concept" in creative["system"]
+    assert "MAKE THE MECHANISM CONCRETE" in creative["system"]
+    reviewer_call = next(c for c in pipeline.models if "campaign reviewer" in c["system"])
+    assert "single_minded must FAIL" in reviewer_call["system"]
+
+
+def test_sample_prompts_stay_inside_competitor_only_scope(pipeline: PipelineCalls) -> None:
+    """The sample never researches audience or market, so its prompts must not
+    set up or attempt those sections (that mismatch is what produced the
+    'unable to complete full positioning-gap analysis' leak)."""
+    g = graph.build_graph(MemorySaver())
+
+    g.invoke(_initial("sample"), _config("t-scope"))
+
+    systems = [c["system"] for c in pipeline.models]
+    assert any("Plan nothing beyond competitor research" in s for s in systems)
+    assert any("competitor research ONLY" in s for s in systems)
+    # The full-mode positioning-gap framing (which needs audience data) never runs.
+    assert not any("what the audience wants" in s for s in systems)

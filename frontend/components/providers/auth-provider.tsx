@@ -13,6 +13,10 @@ interface AuthContextValue {
   signInWithPassword: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
+  /** sends the password-recovery email; resolves for unknown emails too */
+  resetPassword: (email: string) => Promise<void>
+  /** sets a new password on the current (recovery) session */
+  updatePassword: (password: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -89,6 +93,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: async () => {
         const { error } = await requireClient().auth.signOut()
+        if (error) throw new Error(error.message)
+      },
+      resetPassword: async (email) => {
+        // Current origin, never a hardcoded domain, so the same code works on
+        // localhost and production. The link goes through /auth/callback so
+        // the recovery code is exchanged into a cookie session server-side,
+        // then lands on /reset-password.
+        const { error } = await requireClient().auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        })
+        if (error) throw new Error(error.message)
+      },
+      updatePassword: async (password) => {
+        const { error } = await requireClient().auth.updateUser({ password })
         if (error) throw new Error(error.message)
       },
     }

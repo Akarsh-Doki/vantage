@@ -3,7 +3,7 @@ import Link from "next/link"
 import { LoginCard } from "@/components/auth/login-card"
 
 export const metadata: Metadata = {
-  title: "Sign in — Vantage",
+  title: "Sign in · Vantage",
   description: "Sign in to your Vantage account.",
 }
 

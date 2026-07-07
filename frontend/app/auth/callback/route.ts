@@ -20,5 +20,12 @@ export async function GET(request: Request) {
     }
   }
 
+  // Password-recovery links that failed verification (expired, already used)
+  // arrive without a usable code; show the reset page's clean invalid-link
+  // state instead of a silent login error.
+  if (next.startsWith("/reset-password")) {
+    return NextResponse.redirect(`${origin}/reset-password?error=link`)
+  }
+
   return NextResponse.redirect(`${origin}/login?error=auth`)
 }

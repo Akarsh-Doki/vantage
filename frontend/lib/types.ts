@@ -1,6 +1,6 @@
 /**
  * TypeScript mirror of the FastAPI contract (backend/app/schemas.py).
- * The backend is the source of truth — keep in sync.
+ * The backend is the source of truth. Keep in sync.
  */
 
 // ---------- enums the backend accepts ----------
@@ -58,7 +58,7 @@ export function deriveReportStatus(
     case "running": {
       const step = currentStep ?? ""
       if (step.startsWith("generating") || step === "finalizing") return "generating"
-      return "researching" // research:* or not yet set — first running phase
+      return "researching" // research:* or not yet set, the first running phase
     }
     default:
       return "queued"
@@ -84,12 +84,58 @@ export interface RunCreated {
   status: BackendRunStatus
 }
 
+// ---------- the structured deliverable ----------
+// Mirror of what backend finalize() assembles (backend/app/graph.py): plain
+// prose sections that cite the numbered sources list by n, never markdown or
+// inline "[source: url]" text. Legacy rows from before this schema may still
+// hold {text: string} sections and string[] sources; lib/report-adapter.ts
+// converts those.
+
+/** One plain-prose paragraph; cites holds the n values of its sources. */
+export interface CitedParagraphPayload {
+  text: string
+  cites: number[]
+}
+
+/** One entry in the numbered citation list. */
+export interface SourcePayload {
+  n: number
+  title: string
+  url: string
+}
+
+export interface BriefPayload {
+  /** short report title, e.g. "Ridgeline: own the roast date" */
+  headline?: string
+  paragraphs: CitedParagraphPayload[]
+}
+
+export interface StrategyPayload {
+  paragraphs: CitedParagraphPayload[]
+}
+
+/** One creative concept; source_n points into the numbered sources list. */
+export interface ConceptPayload {
+  title: string
+  mechanism_id: string
+  current_trend_used?: string
+  grounded_in?: string
+  source_n?: number
+  execution: string
+  why_ownable?: string
+  format?: string
+  budget_fit?: string
+  score?: number
+  below_bar?: boolean
+}
+
 /** One deliverable. The backend field for concepts is `creative`. */
 export interface ReportResult {
   brief: Record<string, unknown> | null
   strategy: Record<string, unknown> | null
   creative: Record<string, unknown>[] | null
-  sources: string[] | null
+  /** SourcePayload[] on current rows; string[] on legacy rows */
+  sources: unknown[] | null
 }
 
 /** GET /reports/{id} */
@@ -99,6 +145,8 @@ export interface Report {
   status: BackendRunStatus
   current_step: string | null
   error: string | null
+  /** user-chosen name, falling back to the project's business name */
+  name: string | null
   /** present only when status === "completed" */
   report: ReportResult | null
 }
@@ -109,6 +157,14 @@ export interface ReportSummary {
   status: BackendRunStatus
   current_step: string | null
   created_at: string | null
+  /** user-chosen name, falling back to the project's business name */
+  name: string | null
+}
+
+/** PATCH /reports/{id} */
+export interface RenameResponse {
+  run_id: string
+  name: string
 }
 
 /** GET /reports */
@@ -125,11 +181,4 @@ export interface DeleteResponse {
 export interface ApproveInput {
   approved: boolean
   feedback?: string | null
-}
-
-/** POST /sample — free reduced report, one per free user */
-export interface SampleResponse {
-  preview: boolean
-  upgrade_hint: string
-  result: Record<string, unknown>
 }

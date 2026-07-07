@@ -16,7 +16,7 @@ export function Hero() {
           aria-hidden="true"
           className="h-full w-full object-cover"
         />
-        {/* Warm off-white scrim — light enough to let the landscape read, strongest behind the copy */}
+        {/* Warm off-white scrim, light enough to let the landscape read, strongest behind the copy */}
         <div
           className="absolute inset-0"
           style={{
@@ -66,14 +66,19 @@ export function Hero() {
               <ArrowRight className="h-4 w-4" />
             </Link>
 
-            {/* Glass button (React Bits GlassSurface) sits over the hero image where the frosted effect reads well. */}
+            {/* Liquid glass CTA (React Bits GlassSurface): refracts the hero
+                landscape at its rim. The tint layer keeps the label readable. */}
             <GlassSurface
-              width={224}
               height={48}
               borderRadius={10}
+              displace={26}
+              aberration={9}
+              blur={10}
+              tint={0.42}
               className="text-sm font-medium text-foreground"
+              contentClassName="flex items-center justify-center"
             >
-              <Link href="/report" className="inline-flex items-center justify-center gap-2 px-2">
+              <Link href="/report" className="inline-flex h-full w-full items-center justify-center gap-2 px-6">
                 <FileText className="h-4 w-4" />
                 See a sample report
               </Link>

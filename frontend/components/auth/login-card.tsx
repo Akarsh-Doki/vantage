@@ -43,7 +43,7 @@ export function LoginCard() {
         router.push("/dashboard")
       } else {
         await signUp(email, password)
-        // If email confirmation is on, there's no session yet — tell the user.
+        // If email confirmation is on, there's no session yet. Tell the user.
         setNotice("Check your inbox to confirm your email, then sign in.")
         setMode("signin")
         setPending(false)
@@ -106,7 +106,10 @@ export function LoginCard() {
               Password
             </Label>
             {mode === "signin" ? (
-              <Link href="#" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+              <Link
+                href="/forgot-password"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
                 Forgot?
               </Link>
             ) : null}

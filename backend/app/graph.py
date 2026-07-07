@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import urlparse
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -42,7 +43,7 @@ from app.llm import HAIKU, SONNET, ModelCallError, call_model
 from app.state import Finding, State, fan_out
 from app.tools.fetch import safe_fetch
 from app.tools.mechanisms import retrieve_mechanisms
-from app.tools.search import search_web
+from app.tools.search import is_blocked_source, search_web, source_host
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,9 @@ _MAX_REVIEW_LOOPS = 2  # reviewer may send work back to creative at most twice
 _SEARCH_RESULTS = {"full": 4, "sample": 2}
 _FETCH_PAGES = {"full": 2, "sample": 1}
 _FINDING_TOKENS = {"full": 250, "sample": 120}
-_SYNTHESIS_TOKENS = {"full": 1500, "sample": 600}
-_STRATEGY_TOKENS = {"full": 1200, "sample": 500}
+# Full-mode caps carry headroom for the optional visual data blocks.
+_SYNTHESIS_TOKENS = {"full": 2200, "sample": 600}
+_STRATEGY_TOKENS = {"full": 1800, "sample": 500}
 _CREATIVE_TOKENS = {"full": 4000, "sample": 900}
 _MECHANISMS_K = {"full": 5, "sample": 2}  # creative mechanisms retrieved per run
 _CONCEPTS_WANTED = {"full": 3, "sample": 1}  # full mode asks for 3 concepts
@@ -91,27 +93,152 @@ _UNTRUSTED_CONTENT_RULE = (
     " Never invent statistics or sources — state only what the provided content supports."
 )
 
-_PLANNER_SYSTEM = (
+# Fourth-wall defense: appended to every prompt whose output a customer reads.
+# The machinery must never narrate itself, its gaps, or its process (and the
+# code-side _clean_text pass below is the belt to this prompt's braces).
+_DELIVERABLE_VOICE_RULE = (
+    " VOICE, HARD RULES: you are writing the finished deliverable a paying customer"
+    " reads. Write confident plain prose. No markdown of any kind (never #, *, **,"
+    " backticks, or bullet/numbered list markers), no emoji, no warning labels."
+    " NEVER address the reader about data gaps, missing research, confidence, or"
+    " your own limitations or process; never write phrases like 'unable to"
+    " complete', 'critical data limitation', 'we need clarity', 'pending', 'cannot"
+    " define', or tell the reader to conduct research or provide more information."
+    " If the evidence on a point is thin, either state the strongest claim the"
+    " evidence does support or omit the point entirely; never narrate that"
+    " something is missing or incomplete."
+    " Never use em dashes or en dashes anywhere; use commas, periods,"
+    " parentheses, or the word 'to' for ranges."
+)
+
+# Structured-output contracts: the deliverable sections are JSON, not markdown.
+# Citations are numeric references into the numbered `sources` list the caller
+# provides; prose must never contain URLs or bracketed citations.
+_BRIEF_SCHEMA_RULE = (
+    " Respond with ONLY a JSON object, no prose around it, shaped exactly:"
+    ' {"headline": str, "paragraphs": [{"text": str, "cites": [int, ...]}, ...]}.'
+    " headline is a short report title (at most nine words) that names the business"
+    " and its angle. Each paragraphs[].text is one plain-prose paragraph; its cites"
+    " array lists the n values of the numbered sources that support it. Cite only"
+    " through those cites arrays: never write URLs, bracketed citations, or source"
+    " names inside the text."
+)
+_STRATEGY_SCHEMA_RULE = (
+    " Respond with ONLY a JSON object, no prose around it, shaped exactly:"
+    ' {"paragraphs": [{"text": str, "cites": [int, ...]}, ...]}.'
+    " Each paragraphs[].text is one plain-prose paragraph; its cites array lists"
+    " the n values of the numbered sources that support it (carry the brief's"
+    " citation numbers over with the claims they support). Never write URLs or"
+    " bracketed citations inside the text."
+)
+
+# Optional visual data blocks (full mode only). The hard rule for every block:
+# it exists ONLY when the findings actually contain the underlying data, and it
+# must cite the numbered sources it came from. A missing block means that
+# company's report simply renders prose there; an invented number would break
+# the product's core promise (CLAUDE.md rule 10), so validators below drop any
+# block that arrives without valid citations or plausible values.
+_BRIEF_VISUALS_RULE = (
+    " The JSON object may ALSO include these OPTIONAL keys. Include one ONLY"
+    " when the numbered findings genuinely support it; when they do not, omit"
+    " the key entirely (most reports will not have both). Never estimate,"
+    " never fill gaps with invented numbers."
+    ' "competitor_map": {"x_label": str, "y_label": str, "points": [{"name":'
+    ' str, "x": number 0-10, "y": number 0-10, "is_you": bool}], "cites":'
+    " [int, ...]}: a positioning map. Choose the two axes that best split THIS"
+    " market. Place a point only for a competitor the cited findings actually"
+    " describe, positioned according to what those findings say (your"
+    " comparative reading of cited evidence, not statistics); include the"
+    " business itself with is_you true. Fewer than 3 placeable points: omit"
+    " the block."
+    ' "audience_segments": {"segments": [{"name": str, "share": number'
+    ' percent}], "cites": [int, ...]}: ONLY when a finding states real'
+    " segmentation or share numbers for this audience; the shares must come"
+    " from the cited findings, never from intuition."
+)
+_STRATEGY_VISUALS_RULE = (
+    " The JSON object may ALSO include these OPTIONAL keys:"
+    ' "channels": {"items": [{"name": str, "weight": int percent, "rationale":'
+    " short str}]}: your recommended allocation of effort for THIS business,"
+    " 3 to 5 channels with weights summing to 100. This is your"
+    " recommendation, so include it whenever the strategy names channels."
+    ' "funnel": {"stages": [{"name": str, "share": number percent, "detail":'
+    ' short str}], "cites": [int, ...]}: ONLY when the cited findings state'
+    " real conversion or retention benchmarks; shares start at 100, descend,"
+    " and every rate must trace to the cited findings. No benchmark in the"
+    " findings: omit the block."
+)
+
+_PLANNER_SYSTEM_FULL = (
     "You plan marketing research for a small business. From the business profile,"
     " write a short, specific research plan covering: competitors to investigate,"
     " the target audience to understand, and market trends to check." + _UNTRUSTED_CONTENT_RULE
+)
+# Sample runs research competitors ONLY, so the sample plan must not set up
+# audience or market work the pipeline will never do (fourth-wall defense:
+# a plan that promises audience research tempts synthesis to mention missing
+# audience data).
+_PLANNER_SYSTEM_SAMPLE = (
+    "You plan competitor research for a small business. From the business profile,"
+    " write a short, specific plan for what to learn about its closest competitors:"
+    " their positioning, offers, and pricing. Plan nothing beyond competitor"
+    " research." + _UNTRUSTED_CONTENT_RULE
 )
 _DISTILL_SYSTEM = (
     "You are a marketing research analyst. Distill the provided web content into"
     " the few facts most useful for the stated research focus, as plain text."
     + _UNTRUSTED_CONTENT_RULE
 )
-_SYNTHESIS_SYSTEM = (
+_SOURCE_CREDIBILITY_RULE = (
+    " Weigh findings by source credibility: prefer established industry and trade"
+    " publications, reputable news, official company pages, and research or"
+    " analyst sources. If the only support for a claim is a weak source, soften"
+    " the claim or leave it out entirely; never build a strategic claim on a"
+    " forum, Q&A page, or scraped aggregator."
+)
+
+_SYNTHESIS_SYSTEM_FULL = (
     "You are a marketing strategist. Combine the research findings into a brief"
     " with a positioning-gap analysis: what competitors claim, what the audience"
-    " wants, and where this business can position itself. Every claim must end"
-    " with a citation of the form [source: <url>], using only source_url values"
-    " that appear in the findings. Omit any claim you cannot support." + _UNTRUSTED_CONTENT_RULE
+    " wants, and where this business can position itself. Support every claim with"
+    " the numbered sources; omit any claim you cannot support."
+    + _SOURCE_CREDIBILITY_RULE
+    + _BRIEF_SCHEMA_RULE
+    + _BRIEF_VISUALS_RULE
+    + _DELIVERABLE_VOICE_RULE
+    + _UNTRUSTED_CONTENT_RULE
 )
-_STRATEGY_SYSTEM = (
+# The sample brief is a smaller but COMPLETE deliverable: a confident
+# competitive read from competitor research only. It must not attempt the
+# audience or market sections the sample pipeline never researches.
+_SYNTHESIS_SYSTEM_SAMPLE = (
+    "You are a marketing strategist writing a compact competitive read from"
+    " competitor research ONLY. Cover: what each competitor claims, where their"
+    " positioning leaves a gap, and the angle this business can own. Do not write"
+    " audience segmentation, market sizing, or trend analysis, and do not reference"
+    " audience or market data in any way. Support every claim with the numbered"
+    " sources; omit any claim you cannot support."
+    + _SOURCE_CREDIBILITY_RULE
+    + _BRIEF_SCHEMA_RULE
+    + _DELIVERABLE_VOICE_RULE
+    + _UNTRUSTED_CONTENT_RULE
+)
+_STRATEGY_SYSTEM_FULL = (
     "You are a marketing strategist. Turn the cited brief into a concrete"
-    " marketing strategy: positioning, key messages, channels, and priorities."
-    " Preserve the [source: <url>] citations on every claim you carry over."
+    " marketing strategy: positioning, key messages, channel priorities, and the"
+    " first moves to make."
+    + _STRATEGY_SCHEMA_RULE
+    + _STRATEGY_VISUALS_RULE
+    + _DELIVERABLE_VOICE_RULE
+    + _UNTRUSTED_CONTENT_RULE
+)
+_STRATEGY_SYSTEM_SAMPLE = (
+    "You are a marketing strategist. Turn the competitive read into a short,"
+    " confident strategy: the positioning angle to own, two or three key messages,"
+    " and the first channel to prove it on. Work only from the competitive read;"
+    " never invent or reference audience or market claims."
+    + _STRATEGY_SCHEMA_RULE
+    + _DELIVERABLE_VOICE_RULE
     + _UNTRUSTED_CONTENT_RULE
 )
 
@@ -143,8 +270,10 @@ def _creative_system() -> str:
         " findings — what is current comes ONLY from that live research (see"
         " `today` for the date), never from memory or the mechanism library."
         " Every concept must: name its mechanism in mechanism_id; tie itself to"
-        " one specific finding by putting that finding's source_url in"
-        " grounded_in; give a concrete execution native to a format that is"
+        " one specific finding by copying that finding's EXACT source_url value"
+        " from `research` into grounded_in (grounded_in must be one of those"
+        " source_url values, never the business's own website and never a URL"
+        " you compose); give a concrete execution native to a format that is"
         " current right now (format + channel + the exact first post); and say"
         " in why_ownable why THIS business can own it and competitors cannot."
         " HARD RULES:"
@@ -165,10 +294,26 @@ def _creative_system() -> str:
         " (5) Keep every field concise so the whole array fits the token"
         " budget: execution <= ~60 words; why_ownable and budget_fit <= ~30"
         " words each; the other fields a short phrase."
+        " (6) Every field value is plain customer-facing text: no markdown"
+        " syntax, no emoji, and never any mention of missing data, research"
+        " gaps, or your own limitations."
+        " (7) COHERENCE: title, current_trend_used, and execution must all"
+        " describe the SAME single concept. Whatever the title promises is"
+        " exactly what the execution shows, run by the same actor: if the"
+        " title says a guessing game, the execution IS that guessing game;"
+        " never leave a descriptor from an earlier draft in any field. Before"
+        " emitting a concept, re-read its title against its execution and fix"
+        " any mismatch."
+        " (8) MAKE THE MECHANISM CONCRETE: the execution must visibly enact"
+        " the named mechanism's distinctive pattern in the first post itself,"
+        " with a specific hook only this business could run. A generic tactic"
+        " (a taste test, a giveaway, a day-in-the-life clip) with the"
+        " mechanism only as a label is a failure."
         " If `kept_concepts` is non-empty those already passed review: produce"
         " only the requested number of NEW concepts, clearly distinct from"
         " them, fixing what `revision_feedback` rejected."
-        "\nSCRAPPY SMALL-BUSINESS PLAYBOOK:\n" + playbook + "\n" + _UNTRUSTED_CONTENT_RULE
+        + _DELIVERABLE_VOICE_RULE
+        + "\nSCRAPPY SMALL-BUSINESS PLAYBOOK:\n" + playbook + "\n" + _UNTRUSTED_CONTENT_RULE
     )
 
 
@@ -215,6 +360,10 @@ def _reviewer_system() -> str:
         + json.dumps(rubric.get("red_flags_auto_reject", []))
         + " truth_backed must FAIL any claim or statistic not supported by a"
         " cited finding in its strongest TRUE form — never beyond the source."
+        " single_minded must FAIL any concept whose title, current_trend_used,"
+        " and execution do not describe the same single idea (for example a"
+        " title promising one format while the execution describes another);"
+        " name the mismatch in notes so the revision fixes it."
         + _UNTRUSTED_CONTENT_RULE
     )
 
@@ -311,12 +460,433 @@ def _parse_evaluations(text: str) -> list[dict[str, Any]] | None:
 
 
 _UPGRADE_HINT = (
-    "This is a sample preview built from competitor research only. Run a full"
-    " campaign for audience and market research, deeper creative work, and review."
+    "Your sample is a competitive read and one scored campaign concept, built from"
+    " live competitor research. The full report adds audience research, market and"
+    " trend analysis, a complete strategy, three scored concepts, and a review pass."
 )
 
 
+# --- presentation-ready text (no markdown, no emoji, numeric citations) -----------
+
+# Belt to the prompts' braces: even if a model slips, nothing stored in a
+# deliverable may carry markdown tokens, emoji, or inline [source: url] markers.
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001f000-\U0001faff"  # emoji and symbol blocks
+    "\u2600-\u27bf"  # misc symbols, dingbats, warning signs
+    "\u2b00-\u2bff"  # arrows, stars
+    "\u2190-\u21ff"  # arrows
+    "\ufe0f\u200d"  # variation selector, zero-width joiner
+    "]+"
+)
+_INLINE_CITE_RE = re.compile(r"\[source:\s*([^\]\s]+?)\s*\]", re.IGNORECASE)
+_MD_HEADING_RE = re.compile(r"^#{1,6}\s*")
+_MD_BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+_HEADLINE_RE = re.compile(r'"headline"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+_MAX_TITLE_CHARS = 120
+_MAX_HEADLINE_CHARS = 90
+
+
+def _clean_text(text: str) -> str:
+    """Presentation-ready plain text: markdown tokens and emoji stripped,
+    em/en dashes normalized (Vantage voice: commas, or 'to' for ranges),
+    whitespace collapsed. Applied to every string a customer will read."""
+    line = _MD_HEADING_RE.sub("", text.strip())
+    line = _MD_BULLET_RE.sub("", line)
+    line = line.replace("**", "").replace("__", "").replace("`", "").replace("*", "")
+    line = _EMOJI_RE.sub("", line)
+    line = re.sub("(?<=\\d)\\s*[\\u2013\\u2014]\\s*(?=\\d)", " to ", line)  # digit ranges: "to"
+    line = re.sub("\\s*[\\u2013\\u2014]\\s*", ", ", line)
+    return re.sub(r"\s{2,}", " ", line).strip()
+
+
+def _normalize_url(url: str) -> str:
+    return url.strip().rstrip("/").lower()
+
+
+def _source_title(finding: Finding) -> str:
+    """A readable label for a source: the page title when research captured
+    one, else host/path derived from the URL. Never empty."""
+    title = _clean_text(str(finding.get("title") or ""))
+    if title:
+        return title[:_MAX_TITLE_CHARS]
+    url = finding["source_url"]
+    parsed = urlparse(url)
+    host = parsed.netloc.removeprefix("www.")
+    label = f"{host}{parsed.path.rstrip('/')}"
+    return (label or url)[:_MAX_TITLE_CHARS]
+
+
+def _numbered_sources(findings: list[Finding]) -> list[dict[str, Any]]:
+    """The report's single citation list: unique research sources in first-seen
+    order, numbered from 1. Every deliverable section cites into this list by
+    number; the numbering is recomputed deterministically from state, so all
+    nodes and finalize agree."""
+    sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for finding in findings:
+        url = finding.get("source_url", "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        sources.append({"n": len(sources) + 1, "title": _source_title(finding), "url": url})
+    return sources
+
+
+def _n_by_url(sources: list[dict[str, Any]]) -> dict[str, int]:
+    return {_normalize_url(str(s["url"])): int(s["n"]) for s in sources}
+
+
+def _cited_paragraphs(
+    items: list[dict[str, Any]], n_by_url: dict[str, int], max_n: int
+) -> list[dict[str, Any]]:
+    """Validate and clean model-returned paragraph objects: text becomes plain
+    prose, cites become unique ints within 1..max_n. Any stray inline
+    [source: url] marker is converted to its number (or dropped)."""
+    paragraphs: list[dict[str, Any]] = []
+    for item in items:
+        raw_text = str(item.get("text", ""))
+        cites: list[int] = []
+
+        def _add(n: int, cites: list[int] = cites) -> None:
+            if 1 <= n <= max_n and n not in cites:
+                cites.append(n)
+
+        raw_cites = item.get("cites")
+        for value in raw_cites if isinstance(raw_cites, list) else []:
+            try:
+                _add(int(value))
+            except (TypeError, ValueError):
+                continue
+        for url in _INLINE_CITE_RE.findall(raw_text):
+            matched = n_by_url.get(_normalize_url(url))
+            if matched:
+                _add(matched)
+        text = _clean_text(_INLINE_CITE_RE.sub("", raw_text))
+        text = re.sub(r"\s+([.,;:!?])", r"\1", text)
+        if text:
+            paragraphs.append({"text": text, "cites": cites})
+    return paragraphs
+
+
+def _paragraphs_from_prose(text: str, n_by_url: dict[str, int]) -> list[dict[str, Any]]:
+    """Fallback when a model ignored the JSON contract: split plain prose into
+    paragraphs and convert inline [source: url] markers to numeric cites. The
+    stored deliverable never carries raw markdown (rule 6: degrade cleanly)."""
+    lines = [{"text": line, "cites": []} for line in text.split("\n")]
+    return _cited_paragraphs(lines, n_by_url, max_n=len(n_by_url))
+
+
+def _structured_prose(text: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+    """Model output -> {"headline": str, "paragraphs": [{"text", "cites"}]}.
+    Tries the JSON contract first (salvaging complete paragraph objects from a
+    truncated reply); falls back to splitting prose. Either way the stored
+    section is structured and presentation-ready."""
+    by_url = _n_by_url(sources)
+    cleaned = _strip_code_fences(text)
+    start = cleaned.find("[")
+    if start != -1:
+        items = [
+            obj
+            for obj in _salvage_json_objects(cleaned[start:])
+            if isinstance(obj.get("text"), str)
+        ]
+        paragraphs = _cited_paragraphs(items, by_url, max_n=len(sources))
+        if paragraphs:
+            headline = ""
+            match = _HEADLINE_RE.search(cleaned)
+            if match:
+                try:
+                    headline = _clean_text(json.loads(f'"{match.group(1)}"'))
+                except json.JSONDecodeError:
+                    headline = _clean_text(match.group(1))
+            return {"headline": headline[:_MAX_HEADLINE_CHARS], "paragraphs": paragraphs}
+    return {"headline": "", "paragraphs": _paragraphs_from_prose(text, by_url)}
+
+
+def _brief_query_text(brief: dict[str, Any]) -> str:
+    """Flatten the structured brief for the mechanism-retrieval query."""
+    parts = [str(brief.get("headline", ""))]
+    parts.extend(str(p.get("text", "")) for p in brief.get("paragraphs", []))
+    return " ".join(part for part in parts if part)
+
+
+# --- optional visual data blocks (validated; invalid or uncited -> dropped) -------
+
+_SHARE_MAX = 100.0  # every share/rate is a percentage
+_MAP_MIN_POINTS = 3  # a positioning map with fewer points is not a map
+_MAP_MAX_POINTS = 8
+_SEGMENTS_MIN = 2
+_SEGMENTS_MAX = 6
+_SEGMENTS_SUM_MAX = 115.0  # tolerate rounding, reject impossible totals
+_CHANNELS_MIN, _CHANNELS_MAX = 2, 6
+_FUNNEL_MIN, _FUNNEL_MAX = 2, 5
+
+
+def _whole_object(text: str) -> dict[str, Any]:
+    """The model's complete top-level JSON object, for reading the optional
+    visual blocks. {} when the reply was prose or truncated before closing
+    (the blocks are optional, so losing them degrades to prose, rule 6)."""
+    for obj in _salvage_json_objects(_strip_code_fences(text)):
+        if "paragraphs" in obj:
+            return obj
+    return {}
+
+
+def _valid_cites(raw: Any, max_n: int) -> list[int]:
+    cites: list[int] = []
+    for value in raw if isinstance(raw, list) else []:
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= n <= max_n and n not in cites:
+            cites.append(n)
+    return cites
+
+
+def _num(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _competitor_map_block(raw: Any, max_n: int) -> dict[str, Any] | None:
+    """Validated positioning-map block, or None. A map ships only with named
+    axes, at least 3 plausible points, and real citations (rule 10: a chart
+    renders evidence-backed analysis or it does not render)."""
+    if not isinstance(raw, dict):
+        return None
+    cites = _valid_cites(raw.get("cites"), max_n)
+    x_label = _clean_text(str(raw.get("x_label", "")))[:60]
+    y_label = _clean_text(str(raw.get("y_label", "")))[:60]
+    if not cites or not x_label or not y_label:
+        return None
+    points: list[dict[str, Any]] = []
+    raw_points = raw.get("points")
+    for item in raw_points if isinstance(raw_points, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(str(item.get("name", "")))[:40]
+        x, y = _num(item.get("x")), _num(item.get("y"))
+        if not name or x is None or y is None:
+            continue
+        points.append(
+            {
+                "name": name,
+                "x": round(min(max(x, 0.0), 10.0), 2),
+                "y": round(min(max(y, 0.0), 10.0), 2),
+                "is_you": item.get("is_you") is True,
+            }
+        )
+    if len(points) < _MAP_MIN_POINTS:
+        return None
+    return {
+        "x_label": x_label,
+        "y_label": y_label,
+        "points": points[:_MAP_MAX_POINTS],
+        "cites": cites,
+    }
+
+
+def _segments_block(raw: Any, max_n: int) -> dict[str, Any] | None:
+    """Validated audience-segment shares, or None. Requires citations and
+    shares that behave like percentages of one audience."""
+    if not isinstance(raw, dict):
+        return None
+    cites = _valid_cites(raw.get("cites"), max_n)
+    if not cites:
+        return None
+    segments: list[dict[str, Any]] = []
+    raw_segments = raw.get("segments")
+    for item in raw_segments if isinstance(raw_segments, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(str(item.get("name", "")))[:60]
+        share = _num(item.get("share"))
+        if not name or share is None or not 0 < share <= _SHARE_MAX:
+            continue
+        segments.append({"name": name, "share": round(share, 1)})
+    if len(segments) < _SEGMENTS_MIN or sum(s["share"] for s in segments) > _SEGMENTS_SUM_MAX:
+        return None
+    segments.sort(key=lambda s: -s["share"])
+    return {"segments": segments[:_SEGMENTS_MAX], "cites": cites}
+
+
+def _channels_block(raw: Any) -> dict[str, Any] | None:
+    """Validated channel-weight recommendation, or None. This block is the
+    strategist's own allocation (not an external stat), so it needs no
+    citations; weights are normalized to sum exactly 100."""
+    if not isinstance(raw, dict):
+        return None
+    items: list[dict[str, Any]] = []
+    raw_items = raw.get("items")
+    for item in raw_items if isinstance(raw_items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(str(item.get("name", "")))[:60]
+        weight = _num(item.get("weight"))
+        if not name or weight is None or weight <= 0:
+            continue
+        items.append(
+            {
+                "name": name,
+                "weight": weight,
+                "rationale": _clean_text(str(item.get("rationale", "")))[:160],
+            }
+        )
+    if not _CHANNELS_MIN <= len(items) <= _CHANNELS_MAX:
+        return None
+    items.sort(key=lambda c: -c["weight"])
+    total = sum(c["weight"] for c in items)
+    for c in items:
+        c["weight"] = round(c["weight"] / total * 100)
+    items[0]["weight"] += 100 - sum(c["weight"] for c in items)  # rounding drift
+    return {"items": items}
+
+
+def _funnel_block(raw: Any, max_n: int) -> dict[str, Any] | None:
+    """Validated funnel, or None. Rates are external benchmarks, so citations
+    are mandatory and shares must actually descend like a funnel."""
+    if not isinstance(raw, dict):
+        return None
+    cites = _valid_cites(raw.get("cites"), max_n)
+    if not cites:
+        return None
+    stages: list[dict[str, Any]] = []
+    raw_stages = raw.get("stages")
+    for item in raw_stages if isinstance(raw_stages, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(str(item.get("name", "")))[:60]
+        share = _num(item.get("share"))
+        if not name or share is None or not 0 < share <= _SHARE_MAX:
+            continue
+        stages.append(
+            {
+                "name": name,
+                "share": round(share, 1),
+                "detail": _clean_text(str(item.get("detail", "")))[:120],
+            }
+        )
+    if not _FUNNEL_MIN <= len(stages) <= _FUNNEL_MAX:
+        return None
+    if any(stages[i]["share"] < stages[i + 1]["share"] for i in range(len(stages) - 1)):
+        return None  # a funnel that widens is not a funnel
+    return {"stages": stages, "cites": cites}
+
+
+_CONCEPT_TEXT_KEYS = (
+    "title",
+    "current_trend_used",
+    "execution",
+    "why_ownable",
+    "format",
+    "budget_fit",
+)
+
+
+def _presentable_concept(concept: dict[str, Any], n_by_url: dict[str, int]) -> dict[str, Any]:
+    """A concept ready for the deliverable: prose fields cleaned, and its
+    grounded_in URL resolved to source_n (the numbered-citation the UI shows).
+    grounded_in itself is kept: it is the provenance the eval's groundedness
+    metric checks (rule 10)."""
+    out = dict(concept)
+    for key in _CONCEPT_TEXT_KEYS:
+        if isinstance(out.get(key), str):
+            out[key] = _clean_text(out[key])
+    n = n_by_url.get(_normalize_url(str(out.get("grounded_in", ""))))
+    if n:
+        out["source_n"] = n
+    return out
+
+
 # --- research ------------------------------------------------------------------
+
+# Credibility ranking on top of the hard blocklist in tools/search.py.
+# Established trade press, analyst houses, reputable news, and research
+# institutions rank up; blog platforms and thin aggregators rank down; the
+# competitor's own official site scores neutral (primary-source positioning
+# claims are exactly what the competitor agent is after).
+_PREFERRED_DOMAINS = frozenset(
+    {
+        "hbr.org",
+        "mckinsey.com",
+        "bcg.com",
+        "deloitte.com",
+        "pwc.com",
+        "nielsen.com",
+        "nielseniq.com",
+        "gartner.com",
+        "forrester.com",
+        "emarketer.com",
+        "statista.com",
+        "pewresearch.org",
+        "thinkwithgoogle.com",
+        "adage.com",
+        "adweek.com",
+        "marketingweek.com",
+        "marketingdive.com",
+        "retaildive.com",
+        "restaurantdive.com",
+        "grocerydive.com",
+        "techcrunch.com",
+        "reuters.com",
+        "apnews.com",
+        "bloomberg.com",
+        "wsj.com",
+        "nytimes.com",
+        "ft.com",
+        "economist.com",
+        "sproutsocial.com",
+        "hootsuite.com",
+        "mailchimp.com",
+        "shopify.com",
+    }
+)
+_WEAK_DOMAINS = frozenset(
+    {
+        "medium.com",
+        "blogspot.com",
+        "wordpress.com",
+        "substack.com",
+        "weebly.com",
+        "wixsite.com",
+        "buzzfeed.com",
+        "issuu.com",
+        "slideshare.net",
+        "scribd.com",
+    }
+)
+# Ask Tavily for a few more results than the per-mode finding cap, so weak
+# sources can be dropped without shrinking research coverage.
+_EXTRA_SEARCH_CANDIDATES = 4
+
+
+def _source_quality(url: str) -> int:
+    """Higher is more credible. Blocked domains never reach this (filtered in
+    tools/search.py); this ranks what survives."""
+    host = source_host(url)
+    if not host:
+        return -10
+    if host.endswith((".gov", ".edu")) or any(
+        host == d or host.endswith(f".{d}") for d in _PREFERRED_DOMAINS
+    ):
+        return 2
+    if any(host == d or host.endswith(f".{d}") for d in _WEAK_DOMAINS):
+        return -2
+    return 0
+
+
+def _select_results(items: list[dict[str, str]], limit: int) -> list[dict[str, str]]:
+    """The `limit` most credible results, ties kept in Tavily's relevance
+    order (stable sort). The blocklist is re-applied defensively."""
+    candidates = [
+        item for item in items if item.get("url") and not is_blocked_source(item["url"])
+    ]
+    ranked = sorted(candidates, key=lambda item: -_source_quality(item["url"]))
+    return ranked[:limit]
 
 
 def _distill(focus: str, content: str, url: str, mode: str) -> str | None:
@@ -337,10 +907,18 @@ def _distill(focus: str, content: str, url: str, mode: str) -> str | None:
 
 
 def _research(state: State, focus: str, query: str, fetch_pages: bool = False) -> list[Finding]:
-    """Search (and optionally fetch) sources, distilling each into a cited Finding."""
+    """Search (and optionally fetch) sources, distilling each into a cited Finding.
+
+    Over-fetches a few candidates, then keeps only the most credible ones
+    (_select_results), so a weak SEO blog never displaces a trade publication
+    and blocked UGC domains never become findings at all."""
     mode = state["mode"]
+    limit = _SEARCH_RESULTS[mode]
+    results = _select_results(
+        search_web(query, max_results=limit + _EXTRA_SEARCH_CANDIDATES), limit
+    )
     findings: list[Finding] = []
-    for i, item in enumerate(search_web(query, max_results=_SEARCH_RESULTS[mode])):
+    for i, item in enumerate(results):
         url = item.get("url", "")
         if not url:
             continue  # a finding without a source is worthless (rule 10)
@@ -353,7 +931,7 @@ def _research(state: State, focus: str, query: str, fetch_pages: bool = False) -
         if not content:
             continue
         text = _distill(focus, content, url, mode) or content[:_SNIPPET_CHARS]
-        findings.append(Finding(text=text, source_url=url))
+        findings.append(Finding(text=text, source_url=url, title=item.get("title", "")))
     return findings
 
 
@@ -394,38 +972,84 @@ def market_agent(state: State) -> dict[str, Any]:
 
 
 def planner(state: State) -> dict[str, Any]:
+    system = _PLANNER_SYSTEM_SAMPLE if state["mode"] == "sample" else _PLANNER_SYSTEM_FULL
     text = call_model(
         HAIKU,
-        system=_PLANNER_SYSTEM,
+        system=system,
         user=json.dumps(state["business"], sort_keys=True),
         max_tokens=400,
     ).text
     return {"plan": {"text": text}, "step_count": 0}
 
 
+def _numbered_findings(
+    findings: list[Finding], sources: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Findings as the deliverable prompts see them: each tagged with the n of
+    its numbered source, so the model can cite by number."""
+    by_url = _n_by_url(sources)
+    return [
+        {"n": by_url.get(_normalize_url(f["source_url"]), 0), "text": f["text"]}
+        for f in findings
+    ]
+
+
 def synthesis(state: State) -> dict[str, Any]:
     mode = state["mode"]
     model = HAIKU if mode == "sample" else SONNET
     findings = state["research"]
+    sources = _numbered_sources(findings)
     text = call_model(
         model,
-        system=_SYNTHESIS_SYSTEM,
-        user=json.dumps({"plan": state["plan"], "findings": findings}, sort_keys=True),
+        system=_SYNTHESIS_SYSTEM_SAMPLE if mode == "sample" else _SYNTHESIS_SYSTEM_FULL,
+        user=json.dumps(
+            {
+                "business": state["business"],
+                "plan": state["plan"],
+                "findings": _numbered_findings(findings, sources),
+                "sources": sources,
+            },
+            sort_keys=True,
+        ),
         max_tokens=_SYNTHESIS_TOKENS[mode],
     ).text
-    source_urls = sorted({f["source_url"] for f in findings})
-    return {"brief": {"text": text, "source_urls": source_urls}}
+    brief = _structured_prose(text, sources)
+    if mode == "full":
+        # Optional visual blocks ride inside the brief jsonb; each is kept
+        # only when it validates (cited, plausible values), else dropped.
+        raw = _whole_object(text)
+        competitor_map = _competitor_map_block(raw.get("competitor_map"), len(sources))
+        if competitor_map:
+            brief["competitor_map"] = competitor_map
+        segments = _segments_block(raw.get("audience_segments"), len(sources))
+        if segments:
+            brief["audience_segments"] = segments
+    return {"brief": brief}
 
 
 def strategy(state: State) -> dict[str, Any]:
     mode = state["mode"]
+    sources = _numbered_sources(state["research"])
     text = call_model(
         HAIKU if mode == "sample" else SONNET,
-        system=_STRATEGY_SYSTEM,
-        user=json.dumps({"business": state["business"], "brief": state["brief"]}, sort_keys=True),
+        system=_STRATEGY_SYSTEM_SAMPLE if mode == "sample" else _STRATEGY_SYSTEM_FULL,
+        user=json.dumps(
+            {"business": state["business"], "brief": state["brief"], "sources": sources},
+            sort_keys=True,
+        ),
         max_tokens=_STRATEGY_TOKENS[mode],
     ).text
-    return {"strategy": {"text": text}}
+    structured = _structured_prose(text, sources)
+    out: dict[str, Any] = {"paragraphs": structured["paragraphs"]}
+    if mode == "full":
+        raw = _whole_object(text)
+        channels = _channels_block(raw.get("channels"))
+        if channels:
+            out["channels"] = channels
+        funnel = _funnel_block(raw.get("funnel"), len(sources))
+        if funnel:
+            out["funnel"] = funnel
+    return {"strategy": out}
 
 
 def _mechanism_summary(mechanism: dict[str, Any]) -> dict[str, Any]:
@@ -494,7 +1118,7 @@ def creative_director(state: State) -> dict[str, Any]:
     wanted = max(_CONCEPTS_WANTED[mode] - len(kept), 1)
     business = state["business"]
     goal = str(business.get("goal", ""))
-    query = f"{goal} {state['brief'].get('text', '')}"[:_RETRIEVAL_QUERY_CHARS]
+    query = f"{goal} {_brief_query_text(state['brief'])}"[:_RETRIEVAL_QUERY_CHARS]
     mechanisms = retrieve_mechanisms(  # degrades to [] on failure (rule 6)
         query,
         business_type=str(business.get("business_type", "")),
@@ -629,13 +1253,17 @@ def human_review(state: State) -> dict[str, Any]:
 
 
 def finalize(state: State) -> dict[str, Any]:
+    # One numbered source list for the whole deliverable; concept provenance
+    # (grounded_in URLs) is resolved to source_n here, in code, never by a model.
+    sources = _numbered_sources(state["research"])
+    by_url = _n_by_url(sources)
     result: dict[str, Any] = {
         "plan": state["plan"],
         "brief": state["brief"],
         "strategy": state["strategy"],
-        "concepts": state["concepts"],
+        "concepts": [_presentable_concept(c, by_url) for c in state["concepts"]],
         "review": state.get("review", {}),
-        "sources": sorted({f["source_url"] for f in state["research"]}),
+        "sources": sources,
     }
     if state["mode"] == "sample":
         result["preview"] = True

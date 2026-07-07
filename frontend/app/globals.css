@@ -209,6 +209,31 @@
     opacity: 0;
   }
 
+  /* Report sections easing in as they enter the viewport (see reveal.tsx) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Scatter points fading in with a slight rise, staggered per point */
+  @keyframes vantage-chart-fade {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .animate-shimmer,
     .animate-reveal,
@@ -219,6 +244,20 @@
       animation: none;
       opacity: 1;
     }
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+}
+
+/* The reveal state must never hide content on paper or without JS. */
+@media print {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
 
