@@ -13,32 +13,36 @@ export function AudienceSection({
   eyebrow?: string
 }) {
   const { persona } = data
+  const segments = data.segments ?? []
+  const hasSegments = segments.length > 0
   return (
     <div>
       <SectionHeading
         eyebrow={eyebrow}
         title="Who this is for"
-        lede={`${countWord(data.segments.length)} segments, sized by reach.`}
+        lede={hasSegments ? `${countWord(segments.length)} segments, sized by reach.` : undefined}
         agent="audience"
       />
 
-      <div className={`grid grid-cols-1 gap-6 ${persona ? "lg:grid-cols-2" : ""}`}>
-        <div className="rounded-[10px] border border-hairline bg-white p-5 md:p-7">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-            Segment share of addressable audience
-          </p>
-          <div className="mt-4">
-            <SegmentChart segments={data.segments} />
-          </div>
-          {data.cites && data.cites.length > 0 ? (
-            <p className="mt-3 border-t border-hairline pt-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Shares from
-              {data.cites.map((n) => (
-                <Cite key={n} n={n} />
-              ))}
+      <div className={`grid grid-cols-1 gap-6 ${hasSegments && persona ? "lg:grid-cols-2" : ""}`}>
+        {hasSegments ? (
+          <div className="rounded-[10px] border border-hairline bg-white p-5 md:p-7">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              Segment share of addressable audience
             </p>
-          ) : null}
-        </div>
+            <div className="mt-4">
+              <SegmentChart segments={segments} />
+            </div>
+            {data.cites && data.cites.length > 0 ? (
+              <p className="mt-3 border-t border-hairline pt-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                Shares from
+                {data.cites.map((n) => (
+                  <Cite key={n} n={n} />
+                ))}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {persona ? (
           <div className="rounded-[10px] border border-forest/20 bg-white p-6 md:p-7">

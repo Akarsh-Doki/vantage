@@ -1,8 +1,18 @@
 import type { Kpi } from "@/lib/report-types"
 import { countWord } from "@/lib/utils"
+import { Cite } from "./citation"
 import { SectionHeading } from "./section-heading"
 
-export function Measurement({ kpis, eyebrow = "07 / Measurement" }: { kpis: Kpi[]; eyebrow?: string }) {
+export function Measurement({
+  kpis,
+  eyebrow = "07 / Measurement",
+  cites,
+}: {
+  kpis: Kpi[]
+  eyebrow?: string
+  /** sources backing the context column (1-based numbers) */
+  cites?: number[]
+}) {
   return (
     <div>
       <SectionHeading
@@ -31,12 +41,20 @@ export function Measurement({ kpis, eyebrow = "07 / Measurement" }: { kpis: Kpi[
               <tr key={kpi.metric} className="align-top">
                 <td className="px-5 py-4 font-medium">{kpi.metric}</td>
                 <td className="px-5 py-4 font-mono text-sm font-semibold tabular-nums text-forest">{kpi.target}</td>
-                <td className="px-5 py-4 text-foreground/80">{kpi.benchmark}</td>
+                <td className="px-5 py-4 text-foreground/80">{kpi.benchmark ?? ""}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {cites && cites.length > 0 ? (
+        <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          Context from
+          {cites.map((n) => (
+            <Cite key={n} n={n} />
+          ))}
+        </p>
+      ) : null}
     </div>
   )
 }

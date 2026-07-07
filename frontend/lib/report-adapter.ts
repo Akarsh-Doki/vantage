@@ -5,6 +5,10 @@ import type {
   CompetitiveLandscape,
   CreativeConcept,
   FunnelStage,
+  InsightTile,
+  Kpi,
+  Persona,
+  Positioning,
   ReportData,
   Source,
 } from "@/lib/report-types"
@@ -32,19 +36,23 @@ function urlKey(url: string): string {
   return url.trim().replace(/\/+$/, "").toLowerCase()
 }
 
-/** Belt and braces on top of the backend's own sanitizer: strip markdown
- * tokens and emoji, and normalize em/en dashes to the Vantage voice
- * (commas, or "to" for ranges), so no report text ever renders raw markup. */
+/** Belt and braces on top of the backend's own sanitizer: markdown tokens,
+ * emoji, arrows, and invisible separators become SPACES (never deleted,
+ * which glued neighboring words together), em/en dashes normalize to the
+ * Vantage voice (commas, or "to" for ranges), and all whitespace collapses,
+ * so no report text ever renders raw markup or jammed words. */
 function cleanText(text: string): string {
   return text
     .replace(/^#{1,6}\s+/, "")
     .replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "")
-    .replace(/\*\*/g, "")
-    .replace(/[*`]/g, "")
-    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\*\*/g, " ")
+    .replace(/[*`]/g, " ")
+    .replace(/\p{Extended_Pictographic}/gu, " ")
+    .replace(/[\u2190-\u21ff]/g, " ")
+    .replace(/[\u200b-\u200d\u2060\ufeff\u2028\u2029\u00a0\u202f\u2007]/g, " ")
     .replace(/(\d)\s*[\u2013\u2014]\s*(\d)/g, "$1 to $2")
     .replace(/\s*[\u2013\u2014]\s*/g, ", ")
-    .replace(/\s{2,}/g, " ")
+    .replace(/\s+/g, " ")
     .replace(/\s+([.,;:!?])/g, "$1")
     .trim()
 }
@@ -150,51 +158,203 @@ function citesOf(value: unknown, sourceCount: number): number[] {
   return cites
 }
 
-/** brief.competitor_map -> positioning map section data, or undefined. */
-function toLandscape(raw: unknown, sourceCount: number): CompetitiveLandscape | undefined {
+/** A paragraphs array ({text, cites}) from a block, cleaned and bounded. */
+function paragraphsOf(raw: unknown, sourceCount: number, max: number): CitedParagraph[] {
+  const items = Array.isArray(raw) ? raw : []
+  const paragraphs: CitedParagraph[] = []
+  for (const item of items) {
+    const p = asRecord(item)
+    if (!p) continue
+    const text = cleanText(String(p.text ?? ""))
+    if (!text) continue
+    paragraphs.push({ text, cites: citesOf(p.cites, sourceCount) })
+    if (paragraphs.length === max) break
+  }
+  return paragraphs
+}
+
+/** brief.competitor_map + competitor_table + landscape_analysis -> one
+ * landscape section, or undefined when none of the three arrived. */
+function toLandscape(
+  mapRaw: unknown,
+  tableRaw: unknown,
+  analysisRaw: unknown,
+  sourceCount: number,
+): CompetitiveLandscape | undefined {
+  const section: CompetitiveLandscape = {}
+
+  const map = asRecord(mapRaw)
+  if (map) {
+    const xLabel = cleanText(String(map.x_label ?? ""))
+    const yLabel = cleanText(String(map.y_label ?? ""))
+    const cites = citesOf(map.cites, sourceCount)
+    const points = (Array.isArray(map.points) ? map.points : [])
+      .map((item) => {
+        const p = asRecord(item)
+        if (!p) return null
+        const name = cleanText(String(p.name ?? ""))
+        const x = numberIn(p.x, 0, 10)
+        const y = numberIn(p.y, 0, 10)
+        if (!name || x === null || y === null) return null
+        return { name, x, y, isYou: p.is_you === true }
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+    if (xLabel && yLabel && cites.length > 0 && points.length >= 3) {
+      section.xLabel = xLabel
+      section.yLabel = yLabel
+      section.points = points
+      section.cites = cites
+    }
+  }
+
+  const table = asRecord(tableRaw)
+  if (table) {
+    const rows = (Array.isArray(table.rows) ? table.rows : [])
+      .map((item) => {
+        const r = asRecord(item)
+        if (!r) return null
+        const name = cleanText(String(r.name ?? ""))
+        const angle = cleanText(String(r.angle ?? ""))
+        const weakness = cleanText(String(r.weakness ?? ""))
+        return name && angle && weakness ? { name, angle, weakness } : null
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+    if (rows.length >= 2) section.table = rows
+  }
+
+  const analysis = asRecord(analysisRaw)
+  if (analysis) {
+    const paragraphs = paragraphsOf(analysis.paragraphs, sourceCount, 3)
+    if (paragraphs.length > 0) section.analysis = paragraphs
+  }
+
+  return section.points || section.table || section.analysis ? section : undefined
+}
+
+/** brief.audience_persona -> persona card data, or undefined. */
+function toPersona(raw: unknown): Persona | undefined {
   const block = asRecord(raw)
   if (!block) return undefined
-  const xLabel = cleanText(String(block.x_label ?? ""))
-  const yLabel = cleanText(String(block.y_label ?? ""))
-  const cites = citesOf(block.cites, sourceCount)
-  if (!xLabel || !yLabel || cites.length === 0) return undefined
-  const points = (Array.isArray(block.points) ? block.points : [])
+  const strings = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : [])
+      .map((item) => cleanText(String(item)))
+      .filter((item) => item.length > 0)
+  const name = cleanText(String(block.name ?? ""))
+  const motivations = strings(block.motivations)
+  const objections = strings(block.objections)
+  const channels = strings(block.channels)
+  if (!name || motivations.length < 2 || objections.length === 0 || channels.length === 0) {
+    return undefined
+  }
+  return {
+    name,
+    ageRange: cleanText(String(block.age_range ?? "")),
+    motivations,
+    objections,
+    channels,
+  }
+}
+
+/** strategy.positioning -> positioning section, or undefined. */
+function toPositioning(raw: unknown, sourceCount: number): Positioning | undefined {
+  const block = asRecord(raw)
+  if (!block) return undefined
+  const statement = cleanText(String(block.statement ?? ""))
+  if (statement.length < 30) return undefined
+  const tagline = cleanText(String(block.tagline ?? ""))
+  const whyNow = paragraphsOf(block.why_now, sourceCount, 2).filter((p) => p.cites.length > 0)
+  return {
+    statement,
+    tagline: tagline || undefined,
+    whyNow: whyNow.length > 0 ? whyNow : undefined,
+  }
+}
+
+/** brief.tiles -> insight tiles, or undefined. */
+function toTiles(raw: unknown): InsightTile[] | undefined {
+  const tiles = (Array.isArray(raw) ? raw : [])
+    .map((item) => {
+      const t = asRecord(item)
+      if (!t) return null
+      const label = cleanText(String(t.label ?? ""))
+      const value = cleanText(String(t.value ?? ""))
+      const detail = cleanText(String(t.detail ?? ""))
+      return label && value ? { label, value, detail } : null
+    })
+    .filter((t): t is NonNullable<typeof t> => t !== null)
+    .slice(0, 4)
+  return tiles.length >= 2 ? tiles : undefined
+}
+
+/** strategy.pillars -> message pillars, or undefined. */
+function toPillars(raw: unknown): { title: string; body: string }[] | undefined {
+  const pillars = (Array.isArray(raw) ? raw : [])
     .map((item) => {
       const p = asRecord(item)
       if (!p) return null
-      const name = cleanText(String(p.name ?? ""))
-      const x = numberIn(p.x, 0, 10)
-      const y = numberIn(p.y, 0, 10)
-      if (!name || x === null || y === null) return null
-      return { name, x, y, isYou: p.is_you === true }
+      const title = cleanText(String(p.title ?? ""))
+      const body = cleanText(String(p.body ?? ""))
+      return title && body ? { title, body } : null
     })
     .filter((p): p is NonNullable<typeof p> => p !== null)
-  if (points.length < 3) return undefined
-  return { xLabel, yLabel, points, cites }
+    .slice(0, 3)
+  return pillars.length >= 2 ? pillars : undefined
 }
 
-/** brief.audience_segments -> audience section data (chart only), or undefined. */
-function toAudience(raw: unknown, sourceCount: number): Audience | undefined {
+/** strategy.kpis -> measurement rows plus their citations, or undefined. */
+function toKpis(raw: unknown, sourceCount: number): { items: Kpi[]; cites: number[] } | undefined {
   const block = asRecord(raw)
   if (!block) return undefined
-  const cites = citesOf(block.cites, sourceCount)
-  if (cites.length === 0) return undefined
-  const segments = (Array.isArray(block.segments) ? block.segments : [])
+  const items = (Array.isArray(block.items) ? block.items : [])
     .map((item) => {
-      const s = asRecord(item)
-      if (!s) return null
-      const name = cleanText(String(s.name ?? ""))
-      const share = numberIn(s.share, 0.1, 100)
-      return name && share !== null ? { name, share } : null
+      const k = asRecord(item)
+      if (!k) return null
+      const metric = cleanText(String(k.metric ?? ""))
+      const target = cleanText(String(k.target ?? ""))
+      const context = cleanText(String(k.context ?? ""))
+      return metric && target ? { metric, target, benchmark: context || undefined } : null
     })
-    .filter((s): s is NonNullable<typeof s> => s !== null)
-    .sort((a, b) => b.share - a.share)
-  if (segments.length < 2) return undefined
-  // The largest segment is the emphasized one (presentation, not data).
-  return {
-    segments: segments.map((s, i) => (i === 0 ? { ...s, isPrimary: true } : s)),
-    cites,
+    .filter((k): k is NonNullable<typeof k> => k !== null)
+    .slice(0, 6)
+  if (items.length < 3) return undefined
+  return { items, cites: citesOf(block.cites, sourceCount) }
+}
+
+/** brief.audience_segments + audience_persona -> audience section, or
+ * undefined when neither arrived. The chart needs cited shares; the persona
+ * is qualitative and can stand alone. */
+function toAudience(segmentsRaw: unknown, personaRaw: unknown, sourceCount: number): Audience | undefined {
+  const section: Audience = {}
+
+  const block = asRecord(segmentsRaw)
+  if (block) {
+    const cites = citesOf(block.cites, sourceCount)
+    const segments = (Array.isArray(block.segments) ? block.segments : [])
+      .map((item) => {
+        const s = asRecord(item)
+        if (!s) return null
+        const name = cleanText(String(s.name ?? ""))
+        const share = numberIn(s.share, 0.1, 100)
+        return name && share !== null ? { name, share } : null
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.share - a.share)
+    if (cites.length > 0 && segments.length >= 2) {
+      // The largest segment is the emphasized one (presentation, not data).
+      section.segments = segments.map((s, i) => (i === 0 ? { ...s, isPrimary: true } : s))
+      section.cites = cites
+    }
   }
+
+  const persona = toPersona(personaRaw)
+  if (persona) {
+    section.persona = persona
+    const implication = asRecord(personaRaw)?.implication
+    const cleaned = paragraphsOf([implication], sourceCount, 1).filter((p) => p.cites.length > 0)
+    if (cleaned[0]) section.implication = cleaned[0]
+  }
+
+  return section.segments || section.persona ? section : undefined
 }
 
 /** strategy.channels -> recommended channel weights, or undefined. */
@@ -280,9 +440,16 @@ function toConcept(
     own: str("why_ownable") || undefined,
     format: str("format") || undefined,
     budgetFit: str("budget_fit") || undefined,
-    belowBar: raw.below_bar === true,
     sourceIndex,
   }
+}
+
+/** Legacy rows may still hold the retired "(unparsed creative output)"
+ * placeholder or a raw JSON blob in execution; those never render. */
+function isRenderableConcept(concept: CreativeConcept): boolean {
+  if (concept.title === "(unparsed creative output)") return false
+  const execution = concept.execution.trim()
+  return !execution.startsWith("[") && !execution.startsWith("{")
 }
 
 export function toReportData(
@@ -295,16 +462,32 @@ export function toReportData(
 
   const briefParagraphs = toParagraphs(result.brief, indexOfSource, sources.length)
   const strategyParagraphs = toParagraphs(result.strategy, indexOfSource, sources.length)
-  const concepts = (result.creative ?? []).map((c) => toConcept(c, indexOfSource, sources.length))
+  const concepts = (result.creative ?? [])
+    .map((c) => toConcept(c, indexOfSource, sources.length))
+    .filter(isRenderableConcept)
   const scored = concepts.length > 0 && concepts.every((c) => c.score !== undefined)
   const isSample = run.kind === "sample"
 
-  // Visual sections exist only when their validated data blocks arrived;
+  // Rich sections exist only when their validated data blocks arrived;
   // otherwise those parts of the report are prose only. Never invented.
-  const landscape = toLandscape(result.brief?.competitor_map, sources.length)
-  const audience = toAudience(result.brief?.audience_segments, sources.length)
+  const tiles = toTiles(result.brief?.tiles)
+  const landscape = toLandscape(
+    result.brief?.competitor_map,
+    result.brief?.competitor_table,
+    result.brief?.landscape_analysis,
+    sources.length,
+  )
+  const audience = toAudience(
+    result.brief?.audience_segments,
+    result.brief?.audience_persona,
+    sources.length,
+  )
+  const positioning = toPositioning(result.strategy?.positioning, sources.length)
   const channels = toChannels(result.strategy?.channels)
   const funnel = toFunnel(result.strategy?.funnel, sources.length)
+  const pillars = toPillars(result.strategy?.pillars)
+  const pullQuote = asRecord(result.strategy?.pull_quote)
+  const kpis = toKpis(result.strategy?.kpis, sources.length)
 
   const headline =
     typeof result.brief?.headline === "string" ? cleanText(result.brief.headline) : ""
@@ -319,13 +502,18 @@ export function toReportData(
     chips.push({ label: "Sources cited", value: String(sources.length) })
   }
 
+  const quoteText = pullQuote ? cleanText(String(pullQuote.text ?? "")) : ""
   const strategy =
     strategyParagraphs.length > 0 || channels || funnel
       ? {
           narrative: strategyParagraphs,
+          pullQuote: quoteText.length >= 20 ? quoteText : undefined,
+          pullQuoteCaption:
+            quoteText.length >= 20 ? cleanText(String(pullQuote?.caption ?? "")) || "Core message" : undefined,
           channels,
           funnel: funnel?.stages,
           funnelCites: funnel?.cites,
+          pillars,
         }
       : undefined
 
@@ -337,11 +525,15 @@ export function toReportData(
         : "A cited strategy and creative plan researched, drafted, and scored by the Vantage agent pipeline.",
       chips,
     },
-    executiveSummary: briefParagraphs.length > 0 ? { paragraphs: briefParagraphs } : undefined,
+    executiveSummary:
+      briefParagraphs.length > 0 ? { paragraphs: briefParagraphs, tiles } : undefined,
     landscape,
     audience,
+    positioning,
     strategy,
     concepts: concepts.length > 0 ? concepts : undefined,
+    kpis: kpis?.items,
+    kpiCites: kpis?.cites,
     sources: sources.length > 0 ? sources : undefined,
   }
 }

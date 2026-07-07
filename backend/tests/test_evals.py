@@ -86,7 +86,7 @@ def test_parse_relevance_none_when_unparseable() -> None:
 def test_estimated_cost_is_mode_aware() -> None:
     # Sample ~3c/item; full ~30c/item — the confirmation number stays honest.
     assert _estimated_cost_cents(10, "sample") == 30
-    assert _estimated_cost_cents(10, "full") == 300
+    assert _estimated_cost_cents(10, "full") == 450
     assert _estimated_cost_cents(4, "sample") < _estimated_cost_cents(4, "full")
 
 

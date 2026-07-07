@@ -110,13 +110,9 @@ const sampleReport: ReportData = {
   },
 
   audience: {
-    // illustrative sample values, real reports supply these from the backend
-    segments: [
-      { name: "Ritual home-brewers", share: 42, isPrimary: true },
-      { name: "Gift & occasion buyers", share: 23 },
-      { name: "Curious upgraders", share: 20 },
-      { name: "Deal-driven samplers", share: 15 },
-    ],
+    // No segment-share chart here on purpose: real reports only earn that
+    // chart when research states real percentages, which is rare. The demo
+    // shows what a typical real report shows: the persona.
     persona: {
       name: "The Ritual Brewer",
       ageRange: "28 to 45",
@@ -175,15 +171,8 @@ const sampleReport: ReportData = {
       { name: "Local sampling & events", weight: 20, rationale: "sampling answers the taste objection no ad can, then converts on the spot" },
       { name: "Paid search & social", weight: 15, rationale: "captures people already searching for fresh roasted subscriptions" },
     ],
-    // illustrative sample values, real reports supply these from the backend
-    funnel: [
-      { name: "Trial started", detail: "First delivery lands, roast-date card in box", share: 100 },
-      { name: "First three deliveries", detail: "Onboarding sequence + founder check-in", share: 62, fromPrevious: "62% advance" },
-      { name: "Retained at month 6", detail: "Habit formed. Cancelling now feels like a loss", share: 48, fromPrevious: "78% of those retain" },
-    ],
-    funnelNote:
-      "The cliff is real: 38 of 100 trials quit before bag four. Every channel and concept in this report points at the middle of this funnel, not the top.",
-    funnelDropLabel: "↓ the churn cliff",
+    // No funnel chart here on purpose: real reports only earn it when the
+    // research states real conversion or retention benchmarks, which is rare.
     pillars: [
       {
         title: "Freshness you can schedule",

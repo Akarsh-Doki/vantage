@@ -129,7 +129,7 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
             text = calls.creative_responses.pop(0) if calls.creative_responses else CONCEPTS_JSON
         elif "marketing strategist" in system:
             # Synthesis and strategy honor the structured-JSON contract, and
-            # (full mode) may attach the optional visual data blocks.
+            # (full mode) may attach the structured deliverable blocks.
             text = json.dumps(
                 {
                     "headline": "Acme Anvils: own the overnight anvil",
@@ -137,6 +137,53 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
                         {"text": "Rivals sell premium anvils.", "cites": [1]},
                         {"text": "Speed is the open gap.", "cites": [1, 2]},
                     ],
+                    "tiles": [
+                        {"label": "Gap", "value": "Overnight delivery", "detail": "Unclaimed"},
+                        {"label": "Priority", "value": "Short video", "detail": "Lead channel"},
+                        {"label": "Wedge", "value": "Speed proof", "detail": "Checkable claim"},
+                    ],
+                    "competitor_table": {
+                        "rows": [
+                            {"name": "Rival A", "angle": "Premium", "weakness": "Slow delivery"},
+                            {"name": "Rival B", "angle": "Price leader", "weakness": "No story"},
+                        ],
+                        "cites": [1, 2],
+                    },
+                    "landscape_analysis": {
+                        "paragraphs": [{"text": "The field splits on speed.", "cites": [2]}]
+                    },
+                    "audience_persona": {
+                        "name": "The Workshop Pro",
+                        "age_range": "30 to 50",
+                        "motivations": ["Reliable tools", "Same-week delivery"],
+                        "objections": ["Premium price without proof"],
+                        "channels": ["YouTube", "Email"],
+                        "implication": {"text": "Write for spec checkers.", "cites": [2]},
+                    },
+                    "positioning": {
+                        "statement": (
+                            "For working smiths who cannot wait, Acme is the anvil"
+                            " maker that ships overnight."
+                        ),
+                        "tagline": "Steel by morning",
+                        "why_now": [{"text": "Speed expectations keep rising.", "cites": [1]}],
+                    },
+                    "pillars": [
+                        {"title": "Speed you can check", "body": "Every order has a date."},
+                        {"title": "Proof over prestige", "body": "Specs and dates, not romance."},
+                    ],
+                    "pull_quote": {
+                        "text": "Sell the morning the anvil arrives.",
+                        "caption": "Core message",
+                    },
+                    "kpis": {
+                        "items": [
+                            {"metric": "Trial orders", "target": "25 a month", "context": "video"},
+                            {"metric": "Repeat rate", "target": "40 percent", "context": "c"},
+                            {"metric": "Ship time", "target": "Under 24 hours", "context": "c"},
+                        ],
+                        "cites": [1],
+                    },
                     "competitor_map": {
                         "x_label": "Price: value to premium",
                         "y_label": "Delivery speed",
@@ -251,11 +298,19 @@ def test_sample_mode_returns_preview_from_competitor_research_only(
         "url": "https://rival-a.example/pricing",
     }
     assert "[source:" not in json.dumps(result)
-    # The sample never carries visual data blocks (full-mode only).
-    assert "competitor_map" not in result["brief"]
-    assert "audience_segments" not in result["brief"]
-    assert "channels" not in result["strategy"]
-    assert "funnel" not in result["strategy"]
+    # The sample never carries the structured blocks (full-mode only), which
+    # is what keeps the full report clearly richer than the free sample.
+    for key in (
+        "competitor_map",
+        "audience_segments",
+        "tiles",
+        "competitor_table",
+        "landscape_analysis",
+        "audience_persona",
+    ):
+        assert key not in result["brief"]
+    for key in ("channels", "funnel", "positioning", "pillars", "pull_quote", "kpis"):
+        assert key not in result["strategy"]
     # Only the competitor agent ran, over-fetching candidates for quality
     # ranking on top of the sample finding cap.
     expected_fetch = graph._SEARCH_RESULTS["sample"] + graph._EXTRA_SEARCH_CANDIDATES
@@ -331,13 +386,24 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     channel_items = final["strategy"]["channels"]["items"]
     assert sum(c["weight"] for c in channel_items) == 100
     assert final["strategy"]["funnel"]["stages"][0]["share"] == 100
+    # ...and the editorial blocks that give the full report the demo's richness.
+    assert len(final["brief"]["tiles"]) == 3
+    assert final["brief"]["competitor_table"]["rows"][0]["name"] == "Rival A"
+    assert final["brief"]["landscape_analysis"]["paragraphs"][0]["cites"] == [2]
+    assert final["brief"]["audience_persona"]["name"] == "The Workshop Pro"
+    assert final["brief"]["audience_persona"]["implication"]["cites"] == [2]
+    assert final["strategy"]["positioning"]["tagline"] == "Steel by morning"
+    assert final["strategy"]["positioning"]["why_now"][0]["cites"] == [1]
+    assert len(final["strategy"]["pillars"]) == 2
+    assert final["strategy"]["pull_quote"]["text"] == "Sell the morning the anvil arrives."
+    assert len(final["strategy"]["kpis"]["items"]) == 3
     # ...and concepts whose grounded_in URL was resolved to source_n in code.
     result_concepts = final["result"]["concepts"]
     assert [c["title"] for c in result_concepts] == [c["title"] for c in final["concepts"]]
     assert all(c["source_n"] == 1 for c in result_concepts)  # all grounded in rival-a
 
 
-def test_review_loop_caps_and_keeps_best_when_all_rejected(pipeline: PipelineCalls) -> None:
+def test_review_loop_caps_and_delivers_full_unlabeled_set(pipeline: PipelineCalls) -> None:
     pipeline.reviewer_reject_all = True  # every concept fails "ownable" forever
     g = graph.build_graph(MemorySaver())
 
@@ -346,17 +412,19 @@ def test_review_loop_caps_and_keeps_best_when_all_rejected(pipeline: PipelineCal
     creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
     assert len(creative_calls) == 1 + graph._MAX_REVIEW_LOOPS  # first pass + capped loops
     assert "__interrupt__" in paused  # still reaches the human gate instead of spinning
-    # Nothing passed the rubric, but rather than finalize with zero concepts the
-    # loop keeps the single best-scored rejected concept, flagged below the bar,
-    # retaining its score and the reviewer's notes.
-    assert len(paused["concepts"]) == 1
-    best = paused["concepts"][0]
-    assert best["below_bar"] is True
-    assert "score" in best
-    assert "review_reasons" in best
-    assert "review_notes" in best
-    assert paused["review"]["verdict"] == "below_bar"
-    assert paused["review"]["rejected"]
+    # Nothing cleared the bar, but the delivery is still the FULL set: the
+    # best-scoring distinct candidates from the whole loop, each with its
+    # score and NO warning labels. A customer never sees the machinery
+    # calling its own work substandard.
+    assert len(paused["concepts"]) == graph._CONCEPTS_WANTED["full"]
+    for concept in paused["concepts"]:
+        assert "score" in concept
+        assert "below_bar" not in concept
+        assert "review_reasons" not in concept
+        assert "review_notes" not in concept
+    assert paused["review"]["verdict"] == "capped"
+    # The pool bookkeeping never leaks into the final review dict.
+    assert "candidate_pool" not in paused["review"]
 
 
 def test_judge_applies_rubric_gates() -> None:
@@ -451,18 +519,35 @@ def test_creative_director_fuses_mechanisms_with_live_research(
     assert "Founder-face first" in creative_call["system"]
 
 
-def test_creative_director_falls_back_when_output_is_not_json(
+def test_creative_director_retries_once_when_output_is_not_json(
     pipeline: PipelineCalls,
 ) -> None:
-    pipeline.creative_responses.append("here are some vibes, no JSON")
+    # First reply is prose; the bounded format retry returns valid JSON.
+    pipeline.creative_responses.extend(["here are some vibes, no JSON", CONCEPTS_JSON])
+    g = graph.build_graph(MemorySaver())
+
+    out = g.invoke(_initial("sample"), _config("t-retry"))
+
+    creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
+    assert len(creative_calls) == 2  # the retry, and only one retry
+    assert "format_reminder" in creative_calls[1]["user"]
+    assert len(out["concepts"]) == 1
+    assert out["concepts"][0]["title"] == "Safe bet: founder anvil diary"
+
+
+def test_unparseable_creative_never_reaches_reviewer_or_report(
+    pipeline: PipelineCalls,
+) -> None:
+    # Both the first pass and the retry fail to parse: the report ships with
+    # no concepts section rather than raw text, and nothing fake is scored.
+    pipeline.creative_responses.extend(["no json here", "still no json"])
     g = graph.build_graph(MemorySaver())
 
     out = g.invoke(_initial("sample"), _config("t-unparsed"))
 
-    assert len(out["concepts"]) == 1
-    concept = out["concepts"][0]
-    assert concept["title"] == "(unparsed creative output)"
-    assert "vibes" in concept["execution"]  # raw text preserved for the reviewer
+    assert out["concepts"] == []
+    assert out["result"]["concepts"] == []
+    assert "(unparsed" not in json.dumps(out["result"])
 
 
 def test_trend_query_follows_injected_clock_not_a_constant(
@@ -538,13 +623,16 @@ def test_reviewer_rejects_planted_bad_concepts_then_loop_stops_at_cap(
     # concepts and carries a distinct machine-computed reason for each reject.
     revision = creative_calls[1]["user"]
     assert '"concepts_wanted": 3' in revision
+    assert '"avoid_titles"' in revision  # refills must be new ideas, not rewordings
     assert "matches red flag: discount-only" in revision
     assert "is below 7.0" in revision  # the unsourced concept scored under the bar
     assert "not realistically executable by a small team on a small budget" in revision
     assert "__interrupt__" in paused  # capped loop still reaches the human gate
-    # Nothing ever passed, so the capped loop delivers the best below-bar concept.
-    assert paused["review"]["verdict"] == "below_bar"
-    assert len(paused["concepts"]) == 1
+    # Nothing ever passed, so the capped loop delivers the best-scoring
+    # distinct candidates from the pool, a full unlabeled set.
+    assert paused["review"]["verdict"] == "capped"
+    assert len(paused["concepts"]) == graph._CONCEPTS_WANTED["full"]
+    assert all("below_bar" not in c for c in paused["concepts"])
 
 
 @pytest.mark.usefixtures("pipeline")
@@ -647,11 +735,9 @@ def test_parse_concepts_makes_truncation_visible(caplog: pytest.LogCaptureFixtur
     with caplog.at_level(logging.WARNING):
         out = graph._parse_concepts(truncated, wanted=4)
 
-    # Fallback contract preserved: one placeholder concept carrying the raw text.
-    assert len(out) == 1
-    assert out[0]["title"] == "(unparsed creative output)"
-    assert "half a concept" in out[0]["execution"]
-    # Truncation is logged (not silent), with size and the unclosed-array flag.
+    # No placeholder ever again: nothing usable means an empty list, and the
+    # truncation is logged (not silent) with size and the unclosed-array flag.
+    assert out == []
     assert "looks_truncated=True" in caplog.text
     assert f"chars={len(truncated)}" in caplog.text
 
@@ -689,12 +775,56 @@ def test_parse_evaluations_salvages_truncated_array() -> None:
     assert [e["title"] for e in out] == ["A", "B"]  # complete evals kept, incomplete dropped
 
 
-def test_parse_concepts_placeholder_only_when_nothing_salvageable() -> None:
+def test_parse_concepts_returns_empty_when_nothing_salvageable() -> None:
     # A single object cut off immediately — zero complete objects to recover.
-    out = graph._parse_concepts('[{"title": "half', wanted=3)
+    assert graph._parse_concepts('[{"title": "half', wanted=3) == []
 
+
+def test_parse_concepts_survives_real_model_json_quirks() -> None:
+    """The exact failure family from the Blue Bottle run: valid concepts that
+    the old strict parser rejected."""
+    concept = _one_concept()
+
+    # Literal newline inside a string value (strict json.loads rejects this).
+    multiline = json.dumps([concept]).replace(
+        "founder films a 30s clip", "founder films a 30s clip.\nPost it the same day"
+    )
+    assert "\n" in multiline  # sanity: a raw newline sits inside the JSON string value
+    out = graph._parse_concepts(multiline, wanted=3)
     assert len(out) == 1
-    assert out[0]["title"] == "(unparsed creative output)"
+    assert "Post it the same day" in out[0]["execution"]
+
+    # Trailing comma before the closing brace.
+    trailing = '[{"title": "T", "mechanism_id": "m", "execution": "do the thing",}]'
+    assert graph._parse_concepts(trailing, wanted=3)[0]["title"] == "T"
+
+    # A single object instead of an array.
+    single = json.dumps(concept)
+    assert graph._parse_concepts(single, wanted=3)[0]["title"] == concept["title"]
+
+    # A wrapper object around the array.
+    wrapped = json.dumps({"concepts": [concept]})
+    assert graph._parse_concepts(wrapped, wanted=3)[0]["title"] == concept["title"]
+
+    # Prose before a fenced block.
+    fenced = "Here are the concepts:\n```json\n" + json.dumps([concept]) + "\n```"
+    assert graph._parse_concepts(fenced, wanted=3)[0]["title"] == concept["title"]
+
+    # Objects without a real title/execution never count as concepts.
+    assert graph._parse_concepts('[{"title": "only a title"}]', wanted=3) == []
+
+
+def test_reviewer_sends_empty_batch_back_without_calling_the_model(
+    pipeline: PipelineCalls,
+) -> None:
+    state = _initial("full")
+    state["concepts"] = []
+
+    out = graph.reviewer(state)
+
+    assert out["review"]["verdict"] == "weak"
+    assert "JSON array" in out["review"]["notes"]
+    assert pipeline.models == []  # no model call for an empty batch
 
 
 # --- presentation-ready output (structured sections, clean text) ------------------
@@ -707,6 +837,59 @@ def test_clean_text_strips_markdown_and_emoji() -> None:
     assert graph._clean_text("- bullet point") == "bullet point"
     assert graph._clean_text("2. numbered step 🚀") == "numbered step"
     assert graph._clean_text("plain text stays") == "plain text stays"
+
+
+def test_competitor_agent_fetches_the_users_named_competitor_sites(
+    pipeline: PipelineCalls,
+) -> None:
+    """The competitors' own sites (typed in by the user) are the primary
+    sources, fetched through the SSRF-safe fetcher, so competitor findings do
+    not depend on whatever directories a search surfaces."""
+    state = _initial("full")
+    state["business"]["competitor_urls"] = [
+        "https://rival-x.example",
+        "https://rival-y.example/about",
+    ]
+
+    out = graph.competitor_agent(state)
+
+    assert pipeline.fetches[:2] == ["https://rival-x.example", "https://rival-y.example/about"]
+    urls = [f["source_url"] for f in out["research"]]
+    assert urls[:2] == ["https://rival-x.example", "https://rival-y.example/about"]
+    assert out["research"][0]["title"] == "rival-x.example"
+
+
+def test_capped_delivery_result_carries_no_internal_review_keys(
+    pipeline: PipelineCalls,
+) -> None:
+    pipeline.reviewer_reject_all = True
+    g = graph.build_graph(MemorySaver())
+    config = _config("t-capped-final")
+
+    g.invoke(_initial("full"), config)
+    final = g.invoke(Command(resume={"approved": True}), config)
+
+    delivered = final["result"]["concepts"]
+    assert len(delivered) == graph._CONCEPTS_WANTED["full"]
+    for concept in delivered:
+        assert "score" in concept
+        for key in ("below_bar", "review_reasons", "review_notes"):
+            assert key not in concept
+    assert "below the quality bar" not in json.dumps(final["result"]).lower()
+
+
+def test_clean_text_replaces_stripped_tokens_with_spaces() -> None:
+    """The jammed-words bug: deleting arrows or markdown tokens glued their
+    neighbors ("trial→paid" became "trialpaid"). Every stripped class now
+    becomes a space, and invisible separators become real spaces."""
+    assert graph._clean_text("trial→paid") == "trial paid"
+    assert graph._clean_text("draft → score → ship") == "draft score ship"
+    assert graph._clean_text("word**jammed") == "word jammed"
+    assert graph._clean_text("treat\u200btheir customers") == "treat their customers"
+    assert graph._clean_text("Blue\u00a0Bottle") == "Blue Bottle"
+    assert graph._clean_text("well\u2028designed") == "well designed"
+    plain = "normal spacing stays. Just fine."
+    assert graph._clean_text(plain) == plain
 
 
 def test_clean_text_normalizes_dashes_to_the_vantage_voice() -> None:
@@ -925,6 +1108,78 @@ def test_funnel_block_requires_cites_and_descending_shares() -> None:
         "cites": [1],
     }
     assert graph._funnel_block(widening, max_n=1) is None
+
+
+def test_editorial_blocks_validate_and_drop_cleanly() -> None:
+    sources = [{"n": 1, "title": "A", "url": "https://a.example"}]
+
+    # Tiles: label + value required; one tile is too few.
+    assert graph._tiles_block([{"label": "L", "value": "V"}]) is None
+    tiles = graph._tiles_block(
+        [{"label": "L1", "value": "V1", "detail": "D"}, {"label": "L2", "value": "V2"}]
+    )
+    assert tiles is not None
+    assert len(tiles) == 2
+
+    # Competitor table: cites mandatory.
+    rows = [
+        {"name": "A", "angle": "premium", "weakness": "slow"},
+        {"name": "B", "angle": "cheap", "weakness": "thin"},
+    ]
+    assert graph._competitor_table_block({"rows": rows, "cites": []}, max_n=1) is None
+    table = graph._competitor_table_block({"rows": rows, "cites": [1]}, max_n=1)
+    assert table is not None
+    assert len(table["rows"]) == 2
+
+    # Landscape analysis: at least one cited claim or it is opinion, dropped.
+    uncited = {"paragraphs": [{"text": "Everyone is slow.", "cites": []}]}
+    assert graph._analysis_block(uncited, sources) is None
+    cited = {"paragraphs": [{"text": "Everyone is slow.", "cites": [1]}]}
+    analysis = graph._analysis_block(cited, sources)
+    assert analysis is not None
+    assert analysis["paragraphs"][0]["cites"] == [1]
+
+    # Persona: needs name, two motivations, an objection, and a channel; an
+    # uncited implication is dropped while the persona survives.
+    persona = graph._persona_block(
+        {
+            "name": "The Pro",
+            "age_range": "30 to 50",
+            "motivations": ["speed", "proof"],
+            "objections": ["price"],
+            "channels": ["email"],
+            "implication": {"text": "Write for pros.", "cites": []},
+        },
+        sources,
+    )
+    assert persona is not None
+    assert "implication" not in persona
+    assert graph._persona_block({"name": "X", "motivations": ["one"]}, sources) is None
+
+    # Positioning: statement required, uncited why_now dropped, statement kept.
+    positioning = graph._positioning_block(
+        {
+            "statement": "For working smiths who cannot wait, Acme ships overnight.",
+            "tagline": "Steel by morning",
+            "why_now": [{"text": "Expectations rise.", "cites": []}],
+        },
+        sources,
+    )
+    assert positioning is not None
+    assert positioning["tagline"] == "Steel by morning"
+    assert "why_now" not in positioning
+    assert graph._positioning_block({"statement": "Too short"}, sources) is None
+
+    # KPIs: metric + target required, 3 to 6 rows.
+    items = [
+        {"metric": "Orders", "target": "25", "context": "c"},
+        {"metric": "Repeat", "target": "40 percent", "context": "c"},
+        {"metric": "Ship time", "target": "24h", "context": "c"},
+    ]
+    kpis = graph._kpis_block({"items": items, "cites": [1]}, max_n=1)
+    assert kpis is not None
+    assert len(kpis["items"]) == 3
+    assert graph._kpis_block({"items": items[:2], "cites": [1]}, max_n=1) is None
 
 
 def test_visual_block_prompts_are_full_mode_only() -> None:

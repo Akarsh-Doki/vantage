@@ -130,7 +130,11 @@ export function ReportView({
       {hasKpis ? (
         <Band tone="white" width="prose">
           <Reveal>
-            <Measurement kpis={data.kpis ?? []} eyebrow={`${numberOf(6)} / Measurement`} />
+            <Measurement
+              kpis={data.kpis ?? []}
+              eyebrow={`${numberOf(6)} / Measurement`}
+              cites={data.kpiCites}
+            />
           </Reveal>
         </Band>
       ) : null}

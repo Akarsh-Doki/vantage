@@ -44,10 +44,11 @@ export interface CompetitorRow {
 export interface CompetitiveLandscape {
   /** section lede; a report supplies it only when there is real copy for it */
   lede?: string
-  /** axis captions, e.g. "Price: value to premium" */
-  xLabel: string
-  yLabel: string
-  points: CompetitorPoint[]
+  /** axis captions, e.g. "Price: value to premium"; required when points exist */
+  xLabel?: string
+  yLabel?: string
+  /** map coordinates; the map renders only when these exist */
+  points?: CompetitorPoint[]
   /** annotated whitespace region on the map (sample editorial; optional) */
   highlight?: { x1: number; x2: number; y1: number; y2: number; title: string; note?: string }
   /** analysis paragraphs carry their citation numbers in `cites` */
@@ -73,7 +74,8 @@ export interface Persona {
 }
 
 export interface Audience {
-  segments: AudienceSegment[]
+  /** segment shares; the chart renders only when these exist */
+  segments?: AudienceSegment[]
   persona?: Persona
   implication?: CitedParagraph
   /** sources backing the segment shares (1-based numbers) */
@@ -82,8 +84,8 @@ export interface Audience {
 
 export interface Positioning {
   statement: string
-  tagline: string
-  whyNow: CitedParagraph[]
+  tagline?: string
+  whyNow?: CitedParagraph[]
 }
 
 export interface Channel {
@@ -140,8 +142,6 @@ export interface CreativeConcept {
   /** content format the concept is native to, e.g. "Instagram Reel" */
   format?: string
   budgetFit?: string
-  /** delivered even though it scored under the rubric bar */
-  belowBar?: boolean
   /** index into sources[]; absent when the grounding source is unknown */
   sourceIndex?: number
   calendar?: CalendarEntry[]
@@ -150,7 +150,7 @@ export interface CreativeConcept {
 export interface Kpi {
   metric: string
   target: string
-  benchmark: string
+  benchmark?: string
 }
 
 export interface Source {
@@ -169,5 +169,7 @@ export interface ReportData {
   strategy?: Strategy
   concepts?: CreativeConcept[]
   kpis?: Kpi[]
+  /** sources backing the KPI context lines (1-based numbers) */
+  kpiCites?: number[]
   sources?: Source[]
 }

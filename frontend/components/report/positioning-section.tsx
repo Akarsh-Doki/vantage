@@ -24,17 +24,23 @@ export function PositioningSection({ data, number = "04" }: { data: Positioning;
         <blockquote className="text-balance font-serif text-2xl font-medium leading-snug tracking-tight text-foreground md:text-[2rem]">
           {data.statement}
         </blockquote>
-        <figcaption className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-forest">
-          {data.tagline}
-        </figcaption>
+        {data.tagline ? (
+          <figcaption className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-forest">
+            {data.tagline}
+          </figcaption>
+        ) : null}
       </figure>
 
-      <div className="mt-8 space-y-5 text-lg leading-relaxed text-foreground/90">
-        <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Why this, why now</h3>
-        {data.whyNow.map((p) => (
-          <CitedText key={p.text.slice(0, 32)} text={p.text} cites={p.cites} />
-        ))}
-      </div>
+      {data.whyNow && data.whyNow.length > 0 ? (
+        <div className="mt-8 space-y-5 text-lg leading-relaxed text-foreground/90">
+          <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            Why this, why now
+          </h3>
+          {data.whyNow.map((p) => (
+            <CitedText key={p.text.slice(0, 32)} text={p.text} cites={p.cites} />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

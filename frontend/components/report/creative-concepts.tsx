@@ -45,11 +45,6 @@ export function CreativeConcepts({
                         {c.format}
                       </span>
                     ) : null}
-                    {c.belowBar ? (
-                      <span className="inline-flex items-center rounded-[6px] border border-hairline px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                        Below the quality bar
-                      </span>
-                    ) : null}
                   </div>
                   <h3 className="mt-3 font-serif text-2xl font-medium tracking-tight">
                     {String(idx + 1).padStart(2, "0")} · {c.title}

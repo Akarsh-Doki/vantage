@@ -80,7 +80,7 @@ CACHE_DIR = EVALS_DIR / "cache"  # per-business research, saved/reloaded with --
 # several Haiku research calls plus Sonnet synthesis/creative/review; a sample
 # run is Haiku-only with one concept and no review (~10x cheaper). Deliberately
 # conservative; reconcile against the Anthropic console.
-_ESTIMATED_CENTS_PER_ITEM = {"full": 30, "sample": 3}
+_ESTIMATED_CENTS_PER_ITEM = {"full": 45, "sample": 3}
 
 _JUDGE_SYSTEM = (
     "You are a marketing eval judge. Score how well the campaign CONCEPTS meet "
@@ -347,11 +347,30 @@ def _fake_model_text(model: str, system: str, user: str) -> str:
         return "SCORE: 4\nGrounded and on-strategy."
     if "marketing strategist" in system:
         # Synthesis and strategy honor the structured-JSON contract, with the
-        # optional visual blocks so the validators run in the dry-run too.
+        # structured deliverable blocks so the validators run in the dry-run.
         return json.dumps(
             {
                 "headline": "Dry-run: own the gap",
                 "paragraphs": [{"text": "Dry-run paragraph.", "cites": [1]}],
+                "tiles": [
+                    {"label": "Gap", "value": "Open lane", "detail": "dry-run"},
+                    {"label": "Priority", "value": "Video", "detail": "dry-run"},
+                ],
+                "competitor_table": {
+                    "rows": [
+                        {"name": "Rival A", "angle": "premium", "weakness": "slow"},
+                        {"name": "Rival B", "angle": "cheap", "weakness": "thin"},
+                    ],
+                    "cites": [1],
+                },
+                "audience_persona": {
+                    "name": "The Dry Runner",
+                    "age_range": "25 to 45",
+                    "motivations": ["speed", "proof"],
+                    "objections": ["price"],
+                    "channels": ["email"],
+                    "implication": {"text": "Write for checkers.", "cites": [1]},
+                },
                 "competitor_map": {
                     "x_label": "Price",
                     "y_label": "Quality",
@@ -362,11 +381,29 @@ def _fake_model_text(model: str, system: str, user: str) -> str:
                     ],
                     "cites": [1],
                 },
+                "positioning": {
+                    "statement": "For dry-run buyers who need speed, this is the fastest option.",
+                    "tagline": "Fast by default",
+                    "why_now": [{"text": "Expectations rise.", "cites": [1]}],
+                },
+                "pillars": [
+                    {"title": "Speed", "body": "Ship fast."},
+                    {"title": "Proof", "body": "Show receipts."},
+                ],
+                "pull_quote": {"text": "Sell the morning it arrives.", "caption": "Core message"},
                 "channels": {
                     "items": [
                         {"name": "Video", "weight": 60, "rationale": "dry-run"},
                         {"name": "Email", "weight": 40, "rationale": "dry-run"},
                     ]
+                },
+                "kpis": {
+                    "items": [
+                        {"metric": "Orders", "target": "25", "context": "dry-run"},
+                        {"metric": "Repeat", "target": "40 percent", "context": "dry-run"},
+                        {"metric": "CAC", "target": "Under 30", "context": "dry-run"},
+                    ],
+                    "cites": [1],
                 },
             }
         )

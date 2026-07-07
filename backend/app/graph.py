@@ -54,9 +54,10 @@ _MAX_REVIEW_LOOPS = 2  # reviewer may send work back to creative at most twice
 _SEARCH_RESULTS = {"full": 4, "sample": 2}
 _FETCH_PAGES = {"full": 2, "sample": 1}
 _FINDING_TOKENS = {"full": 250, "sample": 120}
-# Full-mode caps carry headroom for the optional visual data blocks.
-_SYNTHESIS_TOKENS = {"full": 2200, "sample": 600}
-_STRATEGY_TOKENS = {"full": 1800, "sample": 500}
+# Full-mode caps carry headroom for the structured deliverable blocks (tiles,
+# competitor table, persona, positioning, kpis, and the numeric charts).
+_SYNTHESIS_TOKENS = {"full": 3200, "sample": 600}
+_STRATEGY_TOKENS = {"full": 2800, "sample": 500}
 _CREATIVE_TOKENS = {"full": 4000, "sample": 900}
 _MECHANISMS_K = {"full": 5, "sample": 2}  # creative mechanisms retrieved per run
 _CONCEPTS_WANTED = {"full": 3, "sample": 1}  # full mode asks for 3 concepts
@@ -132,17 +133,38 @@ _STRATEGY_SCHEMA_RULE = (
     " bracketed citations inside the text."
 )
 
-# Optional visual data blocks (full mode only). The hard rule for every block:
-# it exists ONLY when the findings actually contain the underlying data, and it
-# must cite the numbered sources it came from. A missing block means that
-# company's report simply renders prose there; an invented number would break
-# the product's core promise (CLAUDE.md rule 10), so validators below drop any
-# block that arrives without valid citations or plausible values.
-_BRIEF_VISUALS_RULE = (
-    " The JSON object may ALSO include these OPTIONAL keys. Include one ONLY"
-    " when the numbered findings genuinely support it; when they do not, omit"
-    " the key entirely (most reports will not have both). Never estimate,"
-    " never fill gaps with invented numbers."
+# Structured deliverable blocks (full mode only). Two tiers, one hard rule.
+# Editorial blocks (tiles, competitor table, landscape analysis, persona,
+# positioning, pillars, pull quote, kpis) restate the CITED analysis in
+# structured form; a full report normally includes them all. Numeric chart
+# blocks (map coordinates, segment shares, funnel rates) exist ONLY when the
+# findings actually contain the underlying data. Either way nothing invented
+# gets through: an unsupported number breaks the product's core promise
+# (CLAUDE.md rule 10), and the validators below drop any block that arrives
+# without the required citations or with implausible values.
+_BRIEF_BLOCKS_RULE = (
+    " The JSON object should ALSO include the following keys whenever the"
+    " findings support them; omit a key entirely rather than fill it with"
+    " invented data. A full report normally includes tiles, competitor_table,"
+    " landscape_analysis, audience_persona, and, when the cited findings"
+    " describe three or more competitors, competitor_map."
+    ' "tiles": [{"label": short str, "value": short phrase, "detail": one'
+    " short line}] with exactly 3 or 4 highlight tiles restating the brief's"
+    " strongest takeaways; any number inside a tile must come from the cited"
+    " findings, otherwise keep the value qualitative."
+    ' "competitor_table": {"rows": [{"name": str, "angle": str, "weakness":'
+    ' str}], "cites": [int, ...]}: one row per researched competitor, its'
+    " positioning angle and its exploitable weakness, only for competitors the"
+    " cited findings actually describe."
+    ' "landscape_analysis": {"paragraphs": [{"text": str, "cites": [int,'
+    " ...]}]}: 1 to 3 paragraphs reading the competitive field, every claim"
+    " cited."
+    ' "audience_persona": {"name": short evocative str, "age_range": str,'
+    ' "motivations": [str], "objections": [str], "channels": [str],'
+    ' "implication": {"text": str, "cites": [int, ...]}}: the primary buyer'
+    " persona synthesized from the audience findings. Qualitative only, no"
+    " invented statistics; the implication states what the persona means for"
+    " the marketing and cites its findings."
     ' "competitor_map": {"x_label": str, "y_label": str, "points": [{"name":'
     ' str, "x": number 0-10, "y": number 0-10, "is_you": bool}], "cites":'
     " [int, ...]}: a positioning map. Choose the two axes that best split THIS"
@@ -156,8 +178,19 @@ _BRIEF_VISUALS_RULE = (
     " segmentation or share numbers for this audience; the shares must come"
     " from the cited findings, never from intuition."
 )
-_STRATEGY_VISUALS_RULE = (
-    " The JSON object may ALSO include these OPTIONAL keys:"
+_STRATEGY_BLOCKS_RULE = (
+    " The JSON object should ALSO include the following keys whenever the"
+    " strategy supports them; omit a key entirely rather than fill it with"
+    " invented data. A full report normally includes positioning, pillars,"
+    " pull_quote, channels, and kpis."
+    ' "positioning": {"statement": str, "tagline": short str, "why_now":'
+    ' [{"text": str, "cites": [int, ...]}]}: one clear positioning statement'
+    " naming who it is for and what makes it defensible, a short tagline, and"
+    " 1 or 2 cited paragraphs on why this positioning wins right now."
+    ' "pillars": [{"title": short str, "body": one or two sentences}]: 2 or 3'
+    " message pillars the campaign stands on."
+    ' "pull_quote": {"text": one punchy sentence, "caption": short str}: the'
+    " core message of the strategy, worth pulling out large."
     ' "channels": {"items": [{"name": str, "weight": int percent, "rationale":'
     " short str}]}: your recommended allocation of effort for THIS business,"
     " 3 to 5 channels with weights summing to 100. This is your"
@@ -167,6 +200,10 @@ _STRATEGY_VISUALS_RULE = (
     " real conversion or retention benchmarks; shares start at 100, descend,"
     " and every rate must trace to the cited findings. No benchmark in the"
     " findings: omit the block."
+    ' "kpis": {"items": [{"metric": str, "target": str, "context": one short'
+    ' line}], "cites": [int, ...]}: 3 to 6 numbers to track. Targets are your'
+    " recommendations; any external benchmark mentioned in context must come"
+    " from the cited findings, otherwise keep the context qualitative."
 )
 
 _PLANNER_SYSTEM_FULL = (
@@ -204,7 +241,7 @@ _SYNTHESIS_SYSTEM_FULL = (
     " the numbered sources; omit any claim you cannot support."
     + _SOURCE_CREDIBILITY_RULE
     + _BRIEF_SCHEMA_RULE
-    + _BRIEF_VISUALS_RULE
+    + _BRIEF_BLOCKS_RULE
     + _DELIVERABLE_VOICE_RULE
     + _UNTRUSTED_CONTENT_RULE
 )
@@ -228,7 +265,7 @@ _STRATEGY_SYSTEM_FULL = (
     " marketing strategy: positioning, key messages, channel priorities, and the"
     " first moves to make."
     + _STRATEGY_SCHEMA_RULE
-    + _STRATEGY_VISUALS_RULE
+    + _STRATEGY_BLOCKS_RULE
     + _DELIVERABLE_VOICE_RULE
     + _UNTRUSTED_CONTENT_RULE
 )
@@ -395,6 +432,23 @@ def _judge(evaluation: dict[str, Any]) -> tuple[float, list[str]]:
     return total, reasons
 
 
+_TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
+
+
+def _json_loads_lenient(text: str) -> Any | None:
+    """json.loads that survives the two ways models most often bend JSON:
+    literal newlines/tabs inside string values (strict=False permits control
+    characters; the default strict=True rejects them, which is exactly how a
+    perfectly good multi-line `execution` string used to sink a whole concept
+    batch) and trailing commas before } or ]. None when neither form parses."""
+    for candidate in (text, _TRAILING_COMMA_RE.sub(r"\1", text)):
+        try:
+            return json.loads(candidate, strict=False)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def _salvage_json_objects(text: str) -> list[dict[str, Any]]:
     """Extract every COMPLETE top-level {...} object from text (e.g. the body of
     a truncated JSON array) and return those that parse as dicts. Brace matching
@@ -423,31 +477,42 @@ def _salvage_json_objects(text: str) -> list[dict[str, Any]]:
         elif ch == "}" and depth > 0:
             depth -= 1
             if depth == 0 and obj_start != -1:
-                try:
-                    parsed = json.loads(text[obj_start : i + 1])
-                except json.JSONDecodeError:
-                    parsed = None
+                parsed = _json_loads_lenient(text[obj_start : i + 1])
                 if isinstance(parsed, dict):
                     objects.append(parsed)
                 obj_start = -1
     return objects
 
 
+def _unwrap_concept_container(parsed: Any) -> list[dict[str, Any]]:
+    """Dict objects from whatever shape the model chose: a JSON array, a single
+    object, or a wrapper object holding the array under a key."""
+    if isinstance(parsed, list):
+        return [item for item in parsed if isinstance(item, dict)]
+    if isinstance(parsed, dict):
+        for key in ("concepts", "items", "results", "evaluations"):
+            value = parsed.get(key)
+            if isinstance(value, list):
+                unwrapped = [item for item in value if isinstance(item, dict)]
+                if unwrapped:
+                    return unwrapped
+        return [parsed]
+    return []
+
+
 def _parse_object_array(text: str) -> list[dict[str, Any]]:
-    """Objects from a model's JSON array. Try a strict parse of the bracketed
-    array first; if that fails (commonly a truncated array cut off by
-    max_tokens), salvage the complete top-level objects and drop a trailing
-    incomplete one. Returns [] when nothing parses."""
+    """Objects from a model's JSON reply, tolerating an array, a single object,
+    a {"concepts": [...]} wrapper, prose around the JSON, and truncation.
+    Whole-text lenient parse first; then the bracketed array slice; then
+    salvage of complete top-level objects. Returns [] when nothing parses."""
+    whole = _unwrap_concept_container(_json_loads_lenient(text.strip()))
+    if whole:
+        return whole
     start, end = text.find("["), text.rfind("]")
     if start != -1 and end > start:
-        try:
-            parsed = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            parsed = None
-        if isinstance(parsed, list):
-            objects = [item for item in parsed if isinstance(item, dict)]
-            if objects:
-                return objects
+        sliced = _unwrap_concept_container(_json_loads_lenient(text[start : end + 1]))
+        if sliced:
+            return sliced
     return _salvage_json_objects(text)
 
 
@@ -488,17 +553,33 @@ _MAX_TITLE_CHARS = 120
 _MAX_HEADLINE_CHARS = 90
 
 
+# Invisible separators models sometimes emit between words: zero-width chars,
+# the U+2028/U+2029 line separators, and non-breaking space variants. They
+# render as nothing (or wrongly) on screen and in the PDF, so they become
+# real spaces before the final collapse.
+_INVISIBLE_SEPARATOR_RE = re.compile(
+    "[\\u200b\\u200c\\u200d\\u2060\\ufeff"  # zero-width space/joiners, word joiner, BOM
+    "\\u2028\\u2029"  # line and paragraph separators
+    "\\u00a0\\u202f\\u2007]"  # non-breaking space variants
+)
+
+
 def _clean_text(text: str) -> str:
-    """Presentation-ready plain text: markdown tokens and emoji stripped,
-    em/en dashes normalized (Vantage voice: commas, or 'to' for ranges),
-    whitespace collapsed. Applied to every string a customer will read."""
+    """Presentation-ready plain text: markdown tokens, emoji, and arrows
+    replaced by SPACES (never deleted: deleting "A→B" or "word**word" glued
+    the neighbors together, the jammed-words bug), em/en dashes normalized
+    (Vantage voice: commas, or 'to' for ranges), invisible separators turned
+    into real spaces, and ALL whitespace collapsed to single ASCII spaces.
+    Applied to every string a customer will read."""
     line = _MD_HEADING_RE.sub("", text.strip())
     line = _MD_BULLET_RE.sub("", line)
-    line = line.replace("**", "").replace("__", "").replace("`", "").replace("*", "")
-    line = _EMOJI_RE.sub("", line)
+    line = line.replace("**", " ").replace("__", " ").replace("`", " ").replace("*", " ")
+    line = _EMOJI_RE.sub(" ", line)
+    line = _INVISIBLE_SEPARATOR_RE.sub(" ", line)
     line = re.sub("(?<=\\d)\\s*[\\u2013\\u2014]\\s*(?=\\d)", " to ", line)  # digit ranges: "to"
     line = re.sub("\\s*[\\u2013\\u2014]\\s*", ", ", line)
-    return re.sub(r"\s{2,}", " ", line).strip()
+    line = re.sub(r"\s+", " ", line)
+    return re.sub(r"\s+([.,;:!?])", r"\1", line).strip()
 
 
 def _normalize_url(url: str) -> str:
@@ -777,6 +858,178 @@ def _funnel_block(raw: Any, max_n: int) -> dict[str, Any] | None:
     return {"stages": stages, "cites": cites}
 
 
+# --- editorial deliverable blocks (structured restatements of cited analysis) ------
+
+_TILES_MIN, _TILES_MAX = 2, 4
+_TABLE_MIN, _TABLE_MAX = 2, 6
+_PILLARS_MIN, _PILLARS_MAX = 2, 3
+_KPIS_MIN, _KPIS_MAX = 3, 6
+_LIST_ITEM_MAX = 5  # persona motivations/objections/channels caps
+_PERSONA_MIN_MOTIVATIONS = 2
+_STATEMENT_MIN_CHARS = 30
+_QUOTE_MIN_CHARS = 20
+
+
+def _clean_str_list(raw: Any, item_max_chars: int = 160) -> list[str]:
+    items = []
+    for value in raw if isinstance(raw, list) else []:
+        text = _clean_text(str(value))[:item_max_chars]
+        if text:
+            items.append(text)
+    return items[:_LIST_ITEM_MAX]
+
+
+def _tiles_block(raw: Any) -> list[dict[str, str]] | None:
+    """Insight tiles: label + value required, detail optional. Editorial
+    restatement of the cited brief, so no block-level cites of its own."""
+    tiles = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        label = _clean_text(str(item.get("label", "")))[:40]
+        value = _clean_text(str(item.get("value", "")))[:60]
+        detail = _clean_text(str(item.get("detail", "")))[:120]
+        if label and value:
+            tiles.append({"label": label, "value": value, "detail": detail})
+    if not _TILES_MIN <= len(tiles) <= _TILES_MAX:
+        return None
+    return tiles
+
+
+def _competitor_table_block(raw: Any, max_n: int) -> dict[str, Any] | None:
+    """Competitor angle/weakness rows; competitive claims need receipts, so
+    block-level citations are mandatory."""
+    if not isinstance(raw, dict):
+        return None
+    cites = _valid_cites(raw.get("cites"), max_n)
+    if not cites:
+        return None
+    rows = []
+    raw_rows = raw.get("rows")
+    for item in raw_rows if isinstance(raw_rows, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(str(item.get("name", "")))[:60]
+        angle = _clean_text(str(item.get("angle", "")))[:200]
+        weakness = _clean_text(str(item.get("weakness", "")))[:200]
+        if name and angle and weakness:
+            rows.append({"name": name, "angle": angle, "weakness": weakness})
+    if not _TABLE_MIN <= len(rows) <= _TABLE_MAX:
+        return None
+    return {"rows": rows, "cites": cites}
+
+
+def _analysis_block(raw: Any, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Landscape analysis paragraphs; kept only when at least one claim is
+    actually cited (uncited competitive analysis is opinion, not research)."""
+    if not isinstance(raw, dict):
+        return None
+    paragraphs = raw.get("paragraphs")
+    if not isinstance(paragraphs, list):
+        return None
+    cleaned = _cited_paragraphs(
+        [p for p in paragraphs if isinstance(p, dict)], _n_by_url(sources), max_n=len(sources)
+    )[:3]
+    if not cleaned or all(not p["cites"] for p in cleaned):
+        return None
+    return {"paragraphs": cleaned}
+
+
+def _persona_block(raw: Any, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The primary persona: qualitative synthesis of the audience findings.
+    The implication line keeps its citations or is dropped with the block's
+    other uncited extras; the persona itself carries no numbers."""
+    if not isinstance(raw, dict):
+        return None
+    name = _clean_text(str(raw.get("name", "")))[:60]
+    age_range = _clean_text(str(raw.get("age_range", "")))[:40]
+    motivations = _clean_str_list(raw.get("motivations"))
+    objections = _clean_str_list(raw.get("objections"))
+    channels = _clean_str_list(raw.get("channels"), item_max_chars=40)
+    if not name or len(motivations) < _PERSONA_MIN_MOTIVATIONS or not objections or not channels:
+        return None
+    block: dict[str, Any] = {
+        "name": name,
+        "age_range": age_range,
+        "motivations": motivations,
+        "objections": objections,
+        "channels": channels,
+    }
+    implication = raw.get("implication")
+    if isinstance(implication, dict):
+        cleaned = _cited_paragraphs([implication], _n_by_url(sources), max_n=len(sources))
+        if cleaned and cleaned[0]["cites"]:
+            block["implication"] = cleaned[0]
+    return block
+
+
+def _positioning_block(raw: Any, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Positioning statement plus rationale. The statement is the strategist's
+    own synthesis; the why-now rationale keeps only cited paragraphs."""
+    if not isinstance(raw, dict):
+        return None
+    statement = _clean_text(str(raw.get("statement", "")))[:400]
+    if len(statement) < _STATEMENT_MIN_CHARS:
+        return None
+    block: dict[str, Any] = {"statement": statement}
+    tagline = _clean_text(str(raw.get("tagline", "")))[:60]
+    if tagline:
+        block["tagline"] = tagline
+    why_now = raw.get("why_now")
+    if isinstance(why_now, list):
+        cleaned = _cited_paragraphs(
+            [p for p in why_now if isinstance(p, dict)], _n_by_url(sources), max_n=len(sources)
+        )[:2]
+        cited = [p for p in cleaned if p["cites"]]
+        if cited:
+            block["why_now"] = cited
+    return block
+
+
+def _pillars_block(raw: Any) -> list[dict[str, str]] | None:
+    pillars = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        title = _clean_text(str(item.get("title", "")))[:60]
+        body = _clean_text(str(item.get("body", "")))[:300]
+        if title and body:
+            pillars.append({"title": title, "body": body})
+    if not _PILLARS_MIN <= len(pillars) <= _PILLARS_MAX:
+        return None
+    return pillars
+
+
+def _pull_quote_block(raw: Any) -> dict[str, str] | None:
+    if not isinstance(raw, dict):
+        return None
+    text = _clean_text(str(raw.get("text", "")))[:220]
+    if len(text) < _QUOTE_MIN_CHARS:
+        return None
+    return {"text": text, "caption": _clean_text(str(raw.get("caption", "")))[:60]}
+
+
+def _kpis_block(raw: Any, max_n: int) -> dict[str, Any] | None:
+    """KPI rows: metric and target are the strategist's own recommendations
+    (like channel weights); context should restate cited findings, and the
+    block carries whatever citations the model attached."""
+    if not isinstance(raw, dict):
+        return None
+    items = []
+    raw_items = raw.get("items")
+    for item in raw_items if isinstance(raw_items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        metric = _clean_text(str(item.get("metric", "")))[:80]
+        target = _clean_text(str(item.get("target", "")))[:60]
+        context = _clean_text(str(item.get("context", "")))[:160]
+        if metric and target:
+            items.append({"metric": metric, "target": target, "context": context})
+    if not _KPIS_MIN <= len(items) <= _KPIS_MAX:
+        return None
+    return {"items": items, "cites": _valid_cites(raw.get("cites"), max_n)}
+
+
 _CONCEPT_TEXT_KEYS = (
     "title",
     "current_trend_used",
@@ -787,12 +1040,19 @@ _CONCEPT_TEXT_KEYS = (
 )
 
 
+# Reviewer bookkeeping never ships to a customer: the review happened, the
+# customer sees only its outcome (the score), never the machinery's verdicts.
+_INTERNAL_CONCEPT_KEYS = ("below_bar", "review_reasons", "review_notes")
+
+
 def _presentable_concept(concept: dict[str, Any], n_by_url: dict[str, int]) -> dict[str, Any]:
-    """A concept ready for the deliverable: prose fields cleaned, and its
-    grounded_in URL resolved to source_n (the numbered-citation the UI shows).
-    grounded_in itself is kept: it is the provenance the eval's groundedness
-    metric checks (rule 10)."""
+    """A concept ready for the deliverable: prose fields cleaned, internal
+    review flags stripped, and its grounded_in URL resolved to source_n (the
+    numbered citation the UI shows). grounded_in itself is kept: it is the
+    provenance the eval's groundedness metric checks (rule 10)."""
     out = dict(concept)
+    for key in _INTERNAL_CONCEPT_KEYS:
+        out.pop(key, None)
     for key in _CONCEPT_TEXT_KEYS:
         if isinstance(out.get(key), str):
             out[key] = _clean_text(out[key])
@@ -860,8 +1120,9 @@ _WEAK_DOMAINS = frozenset(
     }
 )
 # Ask Tavily for a few more results than the per-mode finding cap, so weak
-# sources can be dropped without shrinking research coverage.
-_EXTRA_SEARCH_CANDIDATES = 4
+# sources can be dropped without shrinking research coverage. Audience and
+# trend queries surface the most junk, so the pool is deliberately generous.
+_EXTRA_SEARCH_CANDIDATES = 6
 
 
 def _source_quality(url: str) -> int:
@@ -935,17 +1196,40 @@ def _research(state: State, focus: str, query: str, fetch_pages: bool = False) -
     return findings
 
 
+# The user names their competitors; their sites are the primary sources.
+_COMPETITOR_SITE_FETCHES = {"full": 3, "sample": 2}
+
+
 def competitor_agent(state: State) -> dict[str, Any]:
     business = state["business"]
-    query = f"top competitors of {business.get('name', '')} {business.get('industry', '')}"
+    mode = state["mode"]
     focus = "competitor positioning, offers, and pricing"
-    return {"research": _research(state, focus, query, fetch_pages=True)}
+    findings: list[Finding] = []
+    # First the competitors' OWN sites, supplied by the user and fetched
+    # through the SSRF-safe Go fetcher (rule 4), then distilled like any other
+    # source. Primary positioning claims come from the competitors themselves,
+    # not from whatever directory a search surfaces.
+    urls = [str(u) for u in business.get("competitor_urls", []) if u]
+    for url in urls[: _COMPETITOR_SITE_FETCHES[mode]]:
+        try:
+            content = safe_fetch(url)[:_PAGE_CHARS]
+        except Exception:
+            logger.warning("competitor site fetch failed for %s; skipping", url)
+            continue
+        if not content:
+            continue
+        text = _distill(focus, content, url, mode) or content[:_SNIPPET_CHARS]
+        findings.append(Finding(text=text, source_url=url, title=source_host(url)))
+    query = f"top competitors of {business.get('name', '')} {business.get('industry', '')}"
+    return {"research": findings + _research(state, focus, query, fetch_pages=True)}
 
 
 def audience_agent(state: State) -> dict[str, Any]:
     business = state["business"]
-    query = f"target audience and customer needs for {business.get('industry', '')}"
-    focus = "who the target audience is and what they care about"
+    # "research"/"demographics"/"report" bias the results toward published
+    # consumer research and trade coverage instead of SEO listicles.
+    query = f"{business.get('industry', '')} customer demographics consumer research report"
+    focus = "who the target audience is, how it segments, and what it cares about"
     return {"research": _research(state, focus, query)}
 
 
@@ -1015,15 +1299,19 @@ def synthesis(state: State) -> dict[str, Any]:
     ).text
     brief = _structured_prose(text, sources)
     if mode == "full":
-        # Optional visual blocks ride inside the brief jsonb; each is kept
-        # only when it validates (cited, plausible values), else dropped.
+        # Structured deliverable blocks ride inside the brief jsonb; each is
+        # kept only when it validates (cited where required, plausible
+        # values), else dropped and that part of the report stays prose.
         raw = _whole_object(text)
-        competitor_map = _competitor_map_block(raw.get("competitor_map"), len(sources))
-        if competitor_map:
-            brief["competitor_map"] = competitor_map
-        segments = _segments_block(raw.get("audience_segments"), len(sources))
-        if segments:
-            brief["audience_segments"] = segments
+        blocks: dict[str, Any] = {
+            "tiles": _tiles_block(raw.get("tiles")),
+            "competitor_table": _competitor_table_block(raw.get("competitor_table"), len(sources)),
+            "landscape_analysis": _analysis_block(raw.get("landscape_analysis"), sources),
+            "audience_persona": _persona_block(raw.get("audience_persona"), sources),
+            "competitor_map": _competitor_map_block(raw.get("competitor_map"), len(sources)),
+            "audience_segments": _segments_block(raw.get("audience_segments"), len(sources)),
+        }
+        brief.update({key: value for key, value in blocks.items() if value})
     return {"brief": brief}
 
 
@@ -1043,12 +1331,15 @@ def strategy(state: State) -> dict[str, Any]:
     out: dict[str, Any] = {"paragraphs": structured["paragraphs"]}
     if mode == "full":
         raw = _whole_object(text)
-        channels = _channels_block(raw.get("channels"))
-        if channels:
-            out["channels"] = channels
-        funnel = _funnel_block(raw.get("funnel"), len(sources))
-        if funnel:
-            out["funnel"] = funnel
+        blocks: dict[str, Any] = {
+            "positioning": _positioning_block(raw.get("positioning"), sources),
+            "pillars": _pillars_block(raw.get("pillars")),
+            "pull_quote": _pull_quote_block(raw.get("pull_quote")),
+            "channels": _channels_block(raw.get("channels")),
+            "funnel": _funnel_block(raw.get("funnel"), len(sources)),
+            "kpis": _kpis_block(raw.get("kpis"), len(sources)),
+        }
+        out.update({key: value for key, value in blocks.items() if value})
     return {"strategy": out}
 
 
@@ -1070,41 +1361,40 @@ def _mechanism_summary(mechanism: dict[str, Any]) -> dict[str, Any]:
 
 
 def _strip_code_fences(text: str) -> str:
-    """Drop a surrounding Markdown code fence (```json ... ```) the model may
-    add around the JSON array, so the array extraction below sees clean text."""
-    stripped = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text.strip())  # opening fence (+ optional lang)
-    return re.sub(r"\s*```$", "", stripped)  # closing fence
+    """Drop Markdown code-fence markers wherever they appear, including a
+    fenced block buried inside prose ("Here are the concepts:\\n```json ...").
+    JSON itself never contains backtick fences, so removing the markers is
+    always safe for the parsers downstream."""
+    return re.sub(r"```[a-zA-Z0-9_-]*", "", text.strip()).strip()
 
 
 def _parse_concepts(text: str, wanted: int) -> list[dict[str, Any]]:
+    """Structured concepts from the creative reply, or []. A concept must have
+    a real title and execution to count; raw text is NEVER wrapped up as a
+    fake concept, so the reviewer and the UI only ever see parsed fields (the
+    old placeholder path scored and even displayed raw JSON)."""
     cleaned = _strip_code_fences(text)
-    concepts = _parse_object_array(cleaned)  # salvages complete objects if truncated
+    candidates = _parse_object_array(cleaned)
+    concepts = [
+        c
+        for c in candidates
+        if isinstance(c.get("title"), str)
+        and c["title"].strip()
+        and isinstance(c.get("execution"), str)
+        and c["execution"].strip()
+    ]
     if concepts:
         return concepts[:wanted]
-    # Nothing salvageable: keep the raw text visible so the reviewer scores it
-    # weak and loops back, instead of the run crashing (rule 6). Log the size
-    # and whether an array was opened but left unclosed, so truncation (a
-    # too-low max_tokens) is visible instead of failing silently.
+    # Log the size and whether an array was opened but left unclosed, so
+    # truncation (a too-low max_tokens) is visible instead of failing silently.
     start, end = cleaned.find("["), cleaned.rfind("]")
     looks_truncated = start != -1 and end <= start
     logger.warning(
-        "creative output had no salvageable concepts (chars=%d, looks_truncated=%s); "
-        "passing raw text to review",
+        "creative output had no usable concepts (chars=%d, looks_truncated=%s)",
         len(text),
         looks_truncated,
     )
-    return [
-        {
-            "title": "(unparsed creative output)",
-            "mechanism_id": "",
-            "current_trend_used": "",
-            "grounded_in": "",
-            "execution": text.strip(),
-            "why_ownable": "",
-            "format": "",
-            "budget_fit": "",
-        }
-    ]
+    return []
 
 
 def creative_director(state: State) -> dict[str, Any]:
@@ -1126,37 +1416,94 @@ def creative_director(state: State) -> dict[str, Any]:
         budget=str(business.get("budget", "")),
         k=_MECHANISMS_K[mode],
     )
+    payload = {
+        "today": _current_date(),
+        "business": business,
+        "goal": goal,
+        "strategy": state["strategy"],
+        "brief": state["brief"],
+        # Live findings, current-trend research included, each cited.
+        "research": state["research"],
+        "mechanisms": [_mechanism_summary(m) for m in mechanisms],
+        "concepts_wanted": wanted,
+        "kept_concepts": [
+            {"title": c.get("title"), "mechanism_id": c.get("mechanism_id")} for c in kept
+        ],
+        # Titles from every earlier round (kept or rejected), so refills are
+        # genuinely new ideas instead of rewordings of rejected ones.
+        "avoid_titles": sorted(
+            {
+                str(c.get("title", ""))
+                for c in [*kept, *state.get("review", {}).get("candidate_pool", [])]
+                if c.get("title")
+            }
+        ),
+        "revision_feedback": state.get("review", {}).get("notes", ""),
+    }
     text = call_model(
         model,
         system=_creative_system(),  # static block — cached via call_model
-        user=json.dumps(
-            {
-                "today": _current_date(),
-                "business": business,
-                "goal": goal,
-                "strategy": state["strategy"],
-                "brief": state["brief"],
-                # Live findings, current-trend research included, each cited.
-                "research": state["research"],
-                "mechanisms": [_mechanism_summary(m) for m in mechanisms],
-                "concepts_wanted": wanted,
-                "kept_concepts": [
-                    {"title": c.get("title"), "mechanism_id": c.get("mechanism_id")} for c in kept
-                ],
-                "revision_feedback": state.get("review", {}).get("notes", ""),
-            },
-            sort_keys=True,
-        ),
+        user=json.dumps(payload, sort_keys=True),
         max_tokens=_CREATIVE_TOKENS[mode],
     ).text
-    concepts = kept + _parse_concepts(text, wanted)
+    fresh = _parse_concepts(text, wanted)
+    if not fresh:
+        # One bounded format retry (rule 7: still capped): a reply that could
+        # not be parsed must be regenerated, never scored or shown as text.
+        logger.warning("creative reply unparseable; retrying once with a format reminder")
+        retry_payload = {
+            **payload,
+            "format_reminder": (
+                "Your previous reply could not be parsed. Respond with ONLY the"
+                " JSON array of concept objects: no prose, no code fences, no"
+                " wrapper object, every string on a single line with \\n for"
+                " line breaks."
+            ),
+        }
+        text = call_model(
+            model,
+            system=_creative_system(),
+            user=json.dumps(retry_payload, sort_keys=True),
+            max_tokens=_CREATIVE_TOKENS[mode],
+        ).text
+        fresh = _parse_concepts(text, wanted)
+    concepts = kept + fresh
     return {"concepts": concepts, "step_count": state.get("step_count", 0) + 1}
+
+
+def _capped_delivery(
+    kept: list[dict[str, Any]], pool: list[dict[str, Any]], wanted: int
+) -> list[dict[str, Any]]:
+    """Passers topped up to `wanted` with the best-scoring distinct candidates
+    from the loop's whole pool. No labels, no warnings, just the best set."""
+    final = list(kept)
+    seen = {str(c.get("title", "")) for c in final}
+    for candidate in sorted(pool, key=lambda c: -float(c.get("score", 0.0))):
+        if len(final) >= wanted:
+            break
+        title = str(candidate.get("title", ""))
+        if title and title not in seen:
+            seen.add(title)
+            final.append(candidate)
+    return final
 
 
 def reviewer(state: State) -> dict[str, Any]:
     """Score every concept on the rubric; keep passers (with their scores),
     reject the rest with reasons that flow back to creative_director."""
     concepts = state["concepts"]
+    if not concepts:
+        # Nothing parseable came out of creative (even after its retry). There
+        # is nothing to score: send the loop back for fresh concepts instead
+        # of asking the reviewer to grade an empty batch.
+        return {
+            "review": {
+                "verdict": "weak",
+                "notes": "No usable concepts were produced. Generate fresh concepts and reply"
+                " with ONLY the JSON array of concept objects.",
+                "rejected": [],
+            }
+        }
     try:
         text = call_model(
             SONNET,
@@ -1182,7 +1529,11 @@ def reviewer(state: State) -> dict[str, Any]:
     # (never silently kept unreviewed).
     kept: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []  # summaries for the revision feedback
-    rejected_concepts: list[dict[str, Any]] = []  # full concepts, for keep-best fallback
+    # Scored non-passers from EVERY round, same shape as kept (score +
+    # rubric_scores, no flags). If the loop exhausts short of the target, the
+    # best of this pool top up the delivery, so a full report never ships one
+    # lonely concept and never ships one wearing a warning label.
+    pool: list[dict[str, Any]] = list(state.get("review", {}).get("candidate_pool", []))
     for i, concept in enumerate(concepts):
         evaluation = evaluations[i] if i < len(evaluations) else None
         if evaluation is None:
@@ -1200,16 +1551,7 @@ def reviewer(state: State) -> dict[str, Any]:
                     "notes": review_notes,
                 }
             )
-            rejected_concepts.append(
-                {
-                    **concept,
-                    "score": score,
-                    "rubric_scores": scores,
-                    "review_reasons": reasons,
-                    "review_notes": review_notes,
-                    "below_bar": True,
-                }
-            )
+            pool.append({**concept, "score": score, "rubric_scores": scores})
         else:
             kept.append({**concept, "score": score, "rubric_scores": scores})
     if not rejected:
@@ -1217,27 +1559,31 @@ def reviewer(state: State) -> dict[str, Any]:
             "concepts": kept,
             "review": {"verdict": "strong", "notes": "all concepts passed", "rejected": []},
         }
-    # Loop exhausted (this is the last allowed pass) with nothing passing: keep
-    # the highest-scored rejected concept — with its score and the reviewer's
-    # notes, flagged below the bar — so the report always delivers at least one
-    # concept instead of finalizing empty.
-    if not kept and state["step_count"] > _MAX_REVIEW_LOOPS:
-        best = max(rejected_concepts, key=lambda c: c["score"])
+    if state["step_count"] > _MAX_REVIEW_LOOPS:
+        # Loop exhausted short of the target: deliver the passers plus the
+        # best-scoring remaining candidates, unlabeled. Regeneration had its
+        # chances (rule 7 caps them); the delivery is always a full set.
+        final = _capped_delivery(kept, pool, _CONCEPTS_WANTED[state["mode"]])
         logger.warning(
-            "no concept passed the rubric after %d loops; delivering best below-bar concept %r",
-            _MAX_REVIEW_LOOPS,
-            best.get("title", ""),
+            "review loop capped with %d passer(s); topping up to %d from %d candidates",
+            len(kept),
+            len(final),
+            len(pool),
         )
         return {
-            "concepts": [best],
-            "review": {
-                "verdict": "below_bar",
-                "notes": "No concept passed the rubric; delivering the best below-bar concept.",
-                "rejected": rejected,
-            },
+            "concepts": final,
+            "review": {"verdict": "capped", "notes": "loop capped; delivered best available"},
         }
     notes = "Rejected concepts to replace: " + json.dumps(rejected, sort_keys=True)
-    return {"concepts": kept, "review": {"verdict": "weak", "notes": notes, "rejected": rejected}}
+    return {
+        "concepts": kept,
+        "review": {
+            "verdict": "weak",
+            "notes": notes,
+            "rejected": rejected,
+            "candidate_pool": pool,
+        },
+    }
 
 
 def human_review(state: State) -> dict[str, Any]:

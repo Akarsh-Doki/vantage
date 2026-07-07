@@ -29,9 +29,13 @@ logger = logging.getLogger(__name__)
 # consistent with the 10s timeout on the Go fetcher call (safe_fetch).
 _TIMEOUT_SECONDS = 10.0
 
-# Never cite these. Quora and Growjo appeared in a real run; the rest are the
-# same class: forums, Q&A, social boards, content farms, scraped aggregators.
+# Never cite these. Every entry earned its place in a real run or is the same
+# class: forums and Q&A (Quora, Reddit), company-data listing/aggregator sites
+# (Owler, Comparably, Craft.co, ZoomInfo, Growjo, Accio), and SEO content
+# farms (flavorycooking, byflorr, beanofcoffee). A strategic claim built on
+# any of these is worth less than no claim.
 BLOCKED_DOMAINS: tuple[str, ...] = (
+    # forums, Q&A, social boards
     "quora.com",
     "reddit.com",
     "answers.com",
@@ -46,7 +50,32 @@ BLOCKED_DOMAINS: tuple[str, ...] = (
     "fandom.com",
     "pinterest.com",
     "tumblr.com",
+    # company-data listing and scraped-stats aggregators
     "growjo.com",
+    "owler.com",
+    "comparably.com",
+    "craft.co",
+    "zoominfo.com",
+    "similarweb.com",
+    "accio.com",
+    "datanyze.com",
+    "rocketreach.co",
+    # startup directories and market-map aggregators (competitor-query bait)
+    "cbinsights.com",
+    "apistemic.com",
+    "startuphub.ai",
+    "producthunt.com",
+    "crunchbase.com",
+    "pitchbook.com",
+    "tracxn.com",
+    "getlatka.com",
+    "f6s.com",
+    "wellfound.com",
+    "betalist.com",
+    # SEO content farms seen in real runs
+    "flavorycooking.com",
+    "byflorr.com",
+    "beanofcoffee.com",
 )
 
 # Rule 7: the backend is a long-lived process — the cache must not grow forever.
