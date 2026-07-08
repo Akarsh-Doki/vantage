@@ -60,10 +60,15 @@ def test_sample_capacity_policy(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_full_run_decision_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PAID_DAILY_RUN_LIMIT", "3")
 
-    assert limits.full_run_decision("free", 0)[0] is False  # sample-only plan
-    assert limits.full_run_decision(None, 0)[0] is False  # no profile
-    assert limits.full_run_decision("paid", 2)[0] is True  # under the daily limit
+    # No profile or no allowance: the wall, before any cost.
+    assert limits.full_run_decision(None, 0)[0] == "denied"
+    assert limits.full_run_decision({"full_report_credits": 0}, 0)[0] == "denied"
 
-    allowed, reason = limits.full_run_decision("paid", 3)
-    assert allowed is False
+    # Invited users spend a credit; admins never do.
+    assert limits.full_run_decision({"full_report_credits": 2}, 0)[0] == "credit"
+    assert limits.full_run_decision({"is_admin": True, "full_report_credits": 0}, 0)[0] == "admin"
+
+    # The daily runaway cap outranks everything, admins included (rule 7).
+    verdict, reason = limits.full_run_decision({"is_admin": True}, 3)
+    assert verdict == "limited"
     assert "daily run limit" in reason.lower()

@@ -68,8 +68,19 @@ def integration(
     limits.limiter.reset()
 
     store = FakeStore()
-    store.profiles[USER_A] = {"id": USER_A, "plan": "paid", "free_sample_used": False}
-    store.profiles[USER_B] = {"id": USER_B, "plan": "paid", "free_sample_used": False}
+    # Invited-tier users with enough credits for every test in this module.
+    store.profiles[USER_A] = {
+        "id": USER_A,
+        "is_admin": False,
+        "full_report_credits": 10,
+        "free_sample_used": False,
+    }
+    store.profiles[USER_B] = {
+        "id": USER_B,
+        "is_admin": False,
+        "full_report_credits": 10,
+        "free_sample_used": False,
+    }
     for name in _DB_API:
         monkeypatch.setattr(db, name, getattr(store, name))
 

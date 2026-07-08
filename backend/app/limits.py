@@ -88,14 +88,20 @@ def sample_capacity_available(samples_today: int) -> bool:
     return samples_today < config.daily_sample_cap()
 
 
-def full_run_decision(plan: str | None, runs_today: int) -> tuple[bool, str]:
-    """(allowed, reason). Free plans can't start full runs (sample only);
-    paid plans are bounded by the configurable daily run limit."""
-    if plan != "paid":
-        return False, "A full campaign requires a paid plan."
+def full_run_decision(profile: dict[str, Any] | None, runs_today: int) -> tuple[str, str]:
+    """(verdict, reason) for starting a full report. Verdicts:
+    "admin"   unlimited allowance, nothing is decremented;
+    "credit"  the caller must atomically spend one full_report_credit;
+    "limited" over the daily runaway cap (applies to everyone, admins too);
+    "denied"  no allowance: visible button, server-side wall, zero cost."""
     if runs_today >= config.paid_daily_run_limit():
-        return False, "Daily run limit reached for your plan; try again tomorrow."
-    return True, ""
+        return "limited", "Daily run limit reached; try again tomorrow."
+    data = profile or {}
+    if data.get("is_admin"):
+        return "admin", ""
+    if int(data.get("full_report_credits") or 0) >= 1:
+        return "credit", ""
+    return "denied", "Full reports are not enabled for your account yet."
 
 
 # --- cost tracking -------------------------------------------------------------

@@ -182,6 +182,17 @@ def execute_run(
         if mode == "sample":
             # They got nothing, so give the one free sample back (rule 6).
             db.release_free_sample(user_id)
+        elif mode == "full":
+            _refund_full_report_credit(user_id)
+
+
+def _refund_full_report_credit(user_id: str) -> None:
+    """A failed accepted run gives its credit back. Admins never spent one
+    (the gate lets them through without decrementing), so they are skipped;
+    everyone else reached the runner only by spending exactly one."""
+    profile = db.get_profile(user_id)
+    if not (profile or {}).get("is_admin"):
+        db.grant_full_report_credits(user_id, 1)
 
 
 def resume_run(
@@ -220,5 +231,9 @@ def resume_run(
                 **totals,
             },
         )
+        if kind == "full":
+            # The credit was spent when the run was accepted; a failure
+            # during finalization refunds it the same as any other failure.
+            _refund_full_report_credit(user_id)
 
 

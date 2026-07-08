@@ -242,6 +242,24 @@ def soft_delete_report(run_id: str, user_id: str) -> bool:
     return bool(rows)
 
 
+def consume_full_report_credit(user_id: str) -> bool:
+    """Atomically spend one full-report credit; False when none remain.
+    The decrement happens inside the SQL function, so two simultaneous
+    requests can never double-spend the last credit."""
+    response = _client().rpc("consume_full_report_credit", {"p_user_id": user_id}).execute()
+    return bool(response.data)
+
+
+def grant_full_report_credits(user_id: str, count: int) -> None:
+    """Add to a user's allowance (refund on a failed accepted run today;
+    Stripe fulfillment later)."""
+    (
+        _client()
+        .rpc("grant_full_report_credits", {"p_user_id": user_id, "p_count": count})
+        .execute()
+    )
+
+
 def claim_free_sample(user_id: str) -> bool:
     """Atomically flip the one-free-sample flag; False if already used."""
     rows = _rows(

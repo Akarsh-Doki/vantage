@@ -1,0 +1,27 @@
+# Keep the build context tiny and, above all, keep secrets and host-specific
+# junk OUT of the image (rule 2: nothing secret is ever baked in).
+.env
+.env.*
+!.env.example
+
+# A mac-built virtualenv would be wrong on Linux and is huge; deps are
+# reinstalled from requirements.txt inside the image.
+.venv/
+
+# Caches and local tooling state: never needed at runtime.
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Not part of the running service (tests, eval harness, ingest scripts, docs).
+tests/
+evals/
+scripts/
+data/
+
+# VCS
+.git/
+.gitignore

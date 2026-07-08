@@ -44,18 +44,21 @@ def create_report(
     user_id: UserId,
     background: BackgroundTasks,
 ) -> RunCreated:
-    # Per-user durable quota: full runs are paid-only and bounded per day.
+    # Cost control, enforced HERE and nowhere else: admins run free, invited
+    # users spend one credit per accepted run, everyone else gets the clean
+    # 402 wall before any pipeline work (so a direct API call costs nothing).
     profile = db.get_profile(user_id)
-    allowed, reason = limits.full_run_decision(
-        (profile or {}).get("plan"), db.count_user_runs_today(user_id)
-    )
-    if not allowed:
-        code = (
-            status.HTTP_429_TOO_MANY_REQUESTS
-            if (profile or {}).get("plan") == "paid"
-            else status.HTTP_402_PAYMENT_REQUIRED
+    verdict, reason = limits.full_run_decision(profile, db.count_user_runs_today(user_id))
+    if verdict == "limited":
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=reason)
+    if verdict == "denied":
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=reason)
+    if verdict == "credit" and not db.consume_full_report_credit(user_id):
+        # Two requests raced the last credit; the atomic spend decides.
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Full reports are not enabled for your account yet.",
         )
-        raise HTTPException(status_code=code, detail=reason)
 
     business = report.to_business()
     # Snapshot names BEFORE creating this run so it never collides with itself.

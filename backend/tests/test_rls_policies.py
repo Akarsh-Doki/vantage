@@ -13,8 +13,8 @@ the default suite stays dependency-free. To run locally:
 
 The harness installs a tiny Supabase shim (auth schema, auth.users, an
 auth.uid() that reads request.jwt.claims exactly like Supabase's, and the
-anon/authenticated/service_role roles), then applies migrations 005 and 006
-verbatim. Zero API spend; nothing here touches the network.
+anon/authenticated/service_role roles), then applies migrations 005 through
+007 verbatim. Zero API spend; nothing here touches the network.
 """
 
 import os
@@ -84,6 +84,7 @@ def db() -> Iterator["psycopg.Connection"]:
         cur.execute(_SUPABASE_SHIM)
         cur.execute((_MIGRATIONS / "005_app_tables.sql").read_text(encoding="utf-8"))
         cur.execute((_MIGRATIONS / "006_run_display_name.sql").read_text(encoding="utf-8"))
+        cur.execute((_MIGRATIONS / "007_full_report_credits.sql").read_text(encoding="utf-8"))
         # Seed both users; the signup trigger creates their profiles rows.
         for user_id, email in ((USER_A, "a@test.example"), (USER_B, "b@test.example")):
             cur.execute("insert into auth.users (id, email) values (%s, %s)", (user_id, email))
@@ -192,6 +193,39 @@ def test_profile_plan_column_is_backend_owned(as_user) -> None:
     assert affected == [(1,)]
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_user(USER_A, "update public.profiles set plan = 'paid' where id = %s", (USER_A,))
+
+
+def test_clients_cannot_touch_the_full_report_allowance(as_user) -> None:
+    # The cost-control columns are backend-owned: a signed-in client can read
+    # their own balance (profiles_select_own) but can never change it.
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        as_user(
+            USER_A, "update public.profiles set full_report_credits = 999 where id = %s", (USER_A,)
+        )
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        as_user(USER_A, "update public.profiles set is_admin = true where id = %s", (USER_A,))
+    # Nor mint or spend allowance through the RPCs; they are service_role only.
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        as_user(USER_A, "select public.grant_full_report_credits(%s, 100)", (USER_A,))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        as_user(USER_A, "select public.consume_full_report_credit(%s)", (USER_A,))
+
+
+def test_credit_rpcs_spend_and_grant_atomically(db) -> None:
+    # Exercise the real SQL functions as the backend does (service role
+    # semantics; superuser here): grant 2, spend to zero, then the spend
+    # correctly reports no credit left and the balance never goes negative.
+    with db.cursor() as cur:
+        cur.execute("select public.grant_full_report_credits(%s, 2)", (USER_A,))
+        assert cur.fetchone()[0] == 2
+        cur.execute("select public.consume_full_report_credit(%s)", (USER_A,))
+        assert cur.fetchone()[0] is True
+        cur.execute("select public.consume_full_report_credit(%s)", (USER_A,))
+        assert cur.fetchone()[0] is True
+        cur.execute("select public.consume_full_report_credit(%s)", (USER_A,))
+        assert cur.fetchone()[0] is not True  # empty: no row updated
+        cur.execute("select full_report_credits from public.profiles where id = %s", (USER_A,))
+        assert cur.fetchone()[0] == 0
 
 
 def test_anon_role_reads_nothing(db) -> None:

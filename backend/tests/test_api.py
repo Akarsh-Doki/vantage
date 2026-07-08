@@ -199,6 +199,18 @@ class FakeStore:
     def count_user_runs_today(self, user_id: str) -> int:
         return sum(1 for r in self.runs.values() if r["user_id"] == user_id and r["kind"] == "full")
 
+    def consume_full_report_credit(self, user_id: str) -> bool:
+        profile = self.profiles.get(user_id)
+        if profile and profile.get("full_report_credits", 0) >= 1:
+            profile["full_report_credits"] -= 1
+            return True
+        return False
+
+    def grant_full_report_credits(self, user_id: str, count: int) -> None:
+        profile = self.profiles.get(user_id)
+        if profile:
+            profile["full_report_credits"] = profile.get("full_report_credits", 0) + max(count, 0)
+
     def claim_free_sample(self, user_id: str) -> bool:
         profile = self.profiles.get(user_id)
         if profile and not profile["free_sample_used"]:
@@ -247,6 +259,8 @@ _DB_API = (
     "get_profile",
     "count_sample_runs_today",
     "count_user_runs_today",
+    "consume_full_report_credit",
+    "grant_full_report_credits",
     "claim_free_sample",
     "release_free_sample",
     "insert_usage",
@@ -264,8 +278,20 @@ def api(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, FakeStore, FakeGra
     monkeypatch.setenv("RATE_LIMIT_PER_USER", "100000/minute")
     limits.limiter.reset()
     store = FakeStore()
-    store.profiles[USER_A] = {"id": USER_A, "plan": "paid", "free_sample_used": False}
-    store.profiles[USER_B] = {"id": USER_B, "plan": "paid", "free_sample_used": False}
+    # Invited-tier users with headroom; individual tests adjust the
+    # allowance or the admin flag to exercise the other tiers.
+    store.profiles[USER_A] = {
+        "id": USER_A,
+        "is_admin": False,
+        "full_report_credits": 5,
+        "free_sample_used": False,
+    }
+    store.profiles[USER_B] = {
+        "id": USER_B,
+        "is_admin": False,
+        "full_report_credits": 5,
+        "free_sample_used": False,
+    }
     for name in _DB_API:
         monkeypatch.setattr(db, name, getattr(store, name))
     fake_graph = FakeGraph()
@@ -629,16 +655,85 @@ def test_global_sample_cap_returns_friendly_capacity(
     assert store.profiles[USER_B]["free_sample_used"] is False
 
 
-def test_free_plan_cannot_start_full_run(
+def test_zero_credit_user_hits_the_402_wall_at_zero_cost(
     api: tuple[TestClient, FakeStore, FakeGraph],
 ) -> None:
-    client, store, _ = api
-    store.profiles[USER_A]["plan"] = "free"
+    client, store, fake_graph = api
+    store.profiles[USER_A]["full_report_credits"] = 0
 
     response = client.post("/reports", json=BODY, headers=_auth(USER_A))
 
     assert response.status_code == 402
-    assert store.runs == {}  # no run started
+    assert "not enabled" in response.json()["detail"].lower()
+    # The wall is before ANY work: no run row, no graph call, no usage.
+    assert store.runs == {}
+    assert fake_graph.stream_configs == []
+    assert store.usage == []
+
+
+def test_admin_runs_full_reports_without_spending_credits(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    store.profiles[USER_A].update({"is_admin": True, "full_report_credits": 0})
+
+    for _ in range(3):
+        assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
+    assert store.profiles[USER_A]["full_report_credits"] == 0  # never decremented
+
+
+def test_credits_decrement_per_run_then_wall(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    store.profiles[USER_A]["full_report_credits"] = 2
+
+    assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
+    assert store.profiles[USER_A]["full_report_credits"] == 1
+    assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
+    assert store.profiles[USER_A]["full_report_credits"] == 0
+    # Third accepted run would cost money the allowance doesn't cover.
+    assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 402
+    assert len(store.runs) == 2
+
+
+def test_failed_full_run_refunds_the_credit_for_non_admins(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, fake_graph = api
+    store.profiles[USER_A]["full_report_credits"] = 1
+    fake_graph.fail = True
+
+    response = client.post("/reports", json=BODY, headers=_auth(USER_A))
+
+    assert response.status_code == 202  # accepted, then failed in the background
+    run = store.runs[response.json()["run_id"]]
+    assert run["status"] == "failed"
+    # They got nothing, so the credit comes back (mirrors the sample refund).
+    assert store.profiles[USER_A]["full_report_credits"] == 1
+
+
+def test_failed_full_run_does_not_credit_admins(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, fake_graph = api
+    store.profiles[USER_A].update({"is_admin": True, "full_report_credits": 0})
+    fake_graph.fail = True
+
+    assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
+    # No credit was spent, so none is refunded; admins can't mint credits.
+    assert store.profiles[USER_A]["full_report_credits"] == 0
+
+
+def test_sample_stays_available_with_zero_credits(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    store.profiles[USER_A].update({"full_report_credits": 0, "is_admin": False})
+
+    response = client.post("/sample", json=BODY, headers=_auth(USER_A))
+
+    assert response.status_code == 202  # the free sample ignores the allowance
 
 
 def test_paid_daily_run_limit_returns_429(

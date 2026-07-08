@@ -37,8 +37,21 @@ class _FakeGraph:
 @pytest.fixture
 def store(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Capture every DB side effect the runner makes."""
-    captured: dict[str, Any] = {"run": {}, "usage": [], "reports": [], "refunds": []}
+    captured: dict[str, Any] = {
+        "run": {},
+        "usage": [],
+        "reports": [],
+        "refunds": [],
+        "credit_grants": [],
+        "profile": {"id": "user-1", "is_admin": False, "full_report_credits": 0},
+    }
     monkeypatch.setattr(db, "now_iso", lambda: "2026-07-06T00:00:00+00:00")
+    monkeypatch.setattr(db, "get_profile", lambda user_id: captured["profile"])
+    monkeypatch.setattr(
+        db,
+        "grant_full_report_credits",
+        lambda user_id, count: captured["credit_grants"].append((user_id, count)),
+    )
     monkeypatch.setattr(
         db, "update_run", lambda run_id, user_id, fields: captured["run"].update(fields)
     )
@@ -102,7 +115,7 @@ def test_failed_sample_marks_run_failed_and_refunds_quota(
     assert store["refunds"] == ["user-1"]  # the one free sample is given back
 
 
-def test_failed_full_run_does_not_touch_sample_quota(
+def test_failed_full_run_refunds_credit_not_sample_quota(
     monkeypatch: pytest.MonkeyPatch, store: dict[str, Any]
 ) -> None:
     monkeypatch.setattr(runner, "_graph", lambda: _FakeGraph(fail=True))
@@ -110,4 +123,18 @@ def test_failed_full_run_does_not_touch_sample_quota(
     runner.execute_run("run-f", "proj-1", "user-1", {"name": "Acme"}, "full")
 
     assert store["run"]["status"] == "failed"
-    assert store["refunds"] == []
+    assert store["refunds"] == []  # the sample quota is a separate pool
+    # A non-admin only reached the runner by spending a credit; it comes back.
+    assert store["credit_grants"] == [("user-1", 1)]
+
+
+def test_failed_full_run_never_credits_admins(
+    monkeypatch: pytest.MonkeyPatch, store: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(runner, "_graph", lambda: _FakeGraph(fail=True))
+    store["profile"]["is_admin"] = True
+
+    runner.execute_run("run-f", "proj-1", "user-1", {"name": "Acme"}, "full")
+
+    assert store["run"]["status"] == "failed"
+    assert store["credit_grants"] == []  # nothing was spent, nothing is minted
