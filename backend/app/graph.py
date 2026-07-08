@@ -69,18 +69,27 @@ _REVIEWER_TOKENS = 4000  # scores every concept on 10 rubric criteria — don't 
 # Rubric gate (mirrors the knowledge base's rubric.description).
 _MIN_SCORE = 7.0  # weighted score out of 10 below this is rejected
 _CRITERION_FAIL = 5.0  # an individual criterion under this counts as failed
-_FALLBACK_CRITERIA = (
-    "ownable",
-    "surprising_insight",
-    "single_minded",
-    "shareable",
-    "on_strategy",
-    "participatory",
-    "earns_attention",
-    "truth_backed",
-    "format_native",
-    "budget_realistic",
-)
+# The display bar: a concept scored below this NEVER reaches the deliverable,
+# even when the review loop exhausts. A short concept set beats padding the
+# report with rejects (real users once saw concepts scored 1.6 to 1.8).
+_DELIVERY_FLOOR = 6.0
+# Built-in copy of the rubric criteria (id -> test), used whenever the
+# knowledge base file is unreadable. The reviewer prompt must ALWAYS carry the
+# full criterion list: when it once went out empty, the model scored only the
+# two ids named in the prompt prose, the other eight zero-filled, and every
+# concept averaged out near 1.7/10.
+_FALLBACK_CRITERIA: dict[str, str] = {
+    "ownable": "Swap in a competitor's name. If it still works, it's generic: FAIL.",
+    "surprising_insight": "Is there a non-obvious human or behavioral truth or reframe?",
+    "single_minded": "One memorable idea, sayable in one sentence?",
+    "shareable": "Would a real person forward it unprompted (identity, humor, awe, utility)?",
+    "on_strategy": "Dramatizes the business's real positioning gap using its distinctive assets?",
+    "participatory": "Can the audience DO something (create, vote, hunt, duet, show for reward)?",
+    "earns_attention": "Spreads with little or no paid media, not only if you buy reach?",
+    "truth_backed": "Backed by a genuine product or brand truth (hollow stunts backfire)?",
+    "format_native": "Native to a current channel (vertical video, reactive, UGC)?",
+    "budget_realistic": "Executable on THIS business's budget?",
+}
 _PAGE_CHARS = 6000  # cap how much fetched page text is fed to the model
 _SNIPPET_CHARS = 400  # fallback finding text when the distill call fails
 
@@ -348,9 +357,14 @@ def _creative_system() -> str:
         " with a specific hook only this business could run. A generic tactic"
         " (a taste test, a giveaway, a day-in-the-life clip) with the"
         " mechanism only as a label is a failure."
+        " (9) A DISTINCT SET: when more than one concept is requested, every"
+        " concept must use a DIFFERENT mechanism, a DIFFERENT primary format,"
+        " and a DIFFERENT current trend from the others. Three variations of"
+        " one idea is a failure; the reviewer rejects twins."
         " If `kept_concepts` is non-empty those already passed review: produce"
-        " only the requested number of NEW concepts, clearly distinct from"
-        " them, fixing what `revision_feedback` rejected."
+        " only the requested number of NEW concepts, distinct from them in"
+        " mechanism, format, and trend, fixing what `revision_feedback`"
+        " rejected."
         + _DELIVERABLE_VOICE_RULE
         + "\nSCRAPPY SMALL-BUSINESS PLAYBOOK:\n" + playbook + "\n" + _UNTRUSTED_CONTENT_RULE
     )
@@ -370,20 +384,26 @@ def _load_rubric() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def _rubric_criteria() -> list[dict[str, Any]]:
+    """The criteria embedded in the reviewer prompt: the knowledge base's, or
+    the built-in fallback. Never empty, so the model always sees every id it
+    must score (see _FALLBACK_CRITERIA for the regression this prevents)."""
+    criteria = [
+        c for c in (_load_rubric().get("criteria") or []) if isinstance(c, dict) and "id" in c
+    ]
+    if criteria:
+        return criteria
+    return [{"id": cid, "weight": 1, "test": test} for cid, test in _FALLBACK_CRITERIA.items()]
+
+
+@lru_cache(maxsize=1)
 def _rubric_weights() -> dict[str, float]:
-    criteria = _load_rubric().get("criteria") or []
-    weights = {
-        str(c["id"]): float(c.get("weight", 1))
-        for c in criteria
-        if isinstance(c, dict) and "id" in c
-    }
-    return weights or dict.fromkeys(_FALLBACK_CRITERIA, 1.0)
+    return {str(c["id"]): float(c.get("weight", 1)) for c in _rubric_criteria()}
 
 
 @lru_cache(maxsize=1)
 def _reviewer_system() -> str:
     """Static system block for the reviewer — byte-stable, so it caches."""
-    rubric = _load_rubric()
     return (
         "You are the campaign reviewer for small, local businesses. Score every"
         " concept in `concepts` strictly against the research `findings`,"
@@ -394,9 +414,9 @@ def _reviewer_system() -> str:
         ' "red_flags_matched": [<red flags this concept matches, empty if none>],'
         ' "notes": "the specific fix that would most improve this concept"}.'
         " CRITERIA (with weights): "
-        + json.dumps(rubric.get("criteria", []), sort_keys=True)
+        + json.dumps(_rubric_criteria(), sort_keys=True)
         + " RED FLAGS: "
-        + json.dumps(rubric.get("red_flags_auto_reject", []))
+        + json.dumps(_load_rubric().get("red_flags_auto_reject", []))
         + " truth_backed must FAIL any claim or statistic not supported by a"
         " cited finding in its strongest TRUE form — never beyond the source."
         " single_minded must FAIL any concept whose title, current_trend_used,"
@@ -1474,20 +1494,63 @@ def creative_director(state: State) -> dict[str, Any]:
     return {"concepts": concepts, "step_count": state.get("step_count", 0) + 1}
 
 
+_CONCEPT_TOKEN_STOPWORDS = frozenset(
+    {"the", "a", "an", "of", "to", "and", "or", "for", "in", "on", "with", "your", "our"}
+)
+# Jaccard overlap at or above these marks two concepts as the same idea.
+_DUPLICATE_OVERLAP = {"title": 0.6, "format": 0.75, "current_trend_used": 0.7}
+
+
+def _concept_tokens(value: Any) -> set[str]:
+    text = str(value or "").lower()
+    return {t for t in re.findall(r"[a-z0-9]+", text) if t not in _CONCEPT_TOKEN_STOPWORDS}
+
+
+def _near_duplicate(candidate: dict[str, Any], chosen: dict[str, Any]) -> str | None:
+    """Why `candidate` is a twin of `chosen`, or None when genuinely distinct.
+    Twins ride the same mechanism, or mostly repeat the title, format, or
+    trend (a real report once shipped three riffs on one reactive listicle
+    idea). Checked in code because the prompt rule alone did not hold."""
+    mech, chosen_mech = str(candidate.get("mechanism_id") or ""), str(
+        chosen.get("mechanism_id") or ""
+    )
+    if mech and mech == chosen_mech:
+        return f"uses the same mechanism ({mech}) as '{chosen.get('title', '')}'"
+    for fld, threshold in _DUPLICATE_OVERLAP.items():
+        a, b = _concept_tokens(candidate.get(fld)), _concept_tokens(chosen.get(fld))
+        if a and b and len(a & b) / len(a | b) >= threshold:
+            return f"{fld} nearly duplicates '{chosen.get('title', '')}'"
+    return None
+
+
+def _twin_rejection(concept: dict[str, Any], kept: list[dict[str, Any]]) -> list[str]:
+    """A one-reason rejection when `concept` twins any kept concept, else []."""
+    for chosen in kept:
+        twin = _near_duplicate(concept, chosen)
+        if twin:
+            return [f"{twin}; replace with a different mechanism and format"]
+    return []
+
+
 def _capped_delivery(
     kept: list[dict[str, Any]], pool: list[dict[str, Any]], wanted: int
 ) -> list[dict[str, Any]]:
-    """Passers topped up to `wanted` with the best-scoring distinct candidates
-    from the loop's whole pool. No labels, no warnings, just the best set."""
+    """Passers topped up toward `wanted` with the best-scoring distinct pool
+    candidates that clear _DELIVERY_FLOOR. May return fewer than `wanted`:
+    a shorter set of decent concepts beats padding the report with rejects
+    the user can tell are weak. No labels, no warnings."""
     final = list(kept)
-    seen = {str(c.get("title", "")) for c in final}
     for candidate in sorted(pool, key=lambda c: -float(c.get("score", 0.0))):
         if len(final) >= wanted:
             break
+        if float(candidate.get("score", 0.0)) < _DELIVERY_FLOOR:
+            break  # sorted descending: everything after is worse
         title = str(candidate.get("title", ""))
-        if title and title not in seen:
-            seen.add(title)
-            final.append(candidate)
+        if not title or any(str(f.get("title", "")) == title for f in final):
+            continue
+        if any(_near_duplicate(candidate, f) for f in final):
+            continue
+        final.append(candidate)
     return final
 
 
@@ -1561,6 +1624,10 @@ def reviewer(state: State) -> dict[str, Any]:
         else:
             score, reasons = _judge(evaluation)
             scores, review_notes = evaluation.get("scores", {}), str(evaluation.get("notes", ""))
+        if not reasons:
+            # A passer that is a twin of an already-kept concept regenerates:
+            # three concepts means three different ideas, not one idea thrice.
+            reasons.extend(_twin_rejection(concept, kept))
         if reasons:
             rejected.append(
                 {

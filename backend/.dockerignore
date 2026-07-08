@@ -16,11 +16,14 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Not part of the running service (tests, eval harness, ingest scripts, docs).
+# Not part of the running service (tests, eval harness, ingest scripts).
+# data/ is NOT listed here on purpose: the creative knowledge base
+# (data/vantage-creative-knowledge-base.json) is a runtime dependency of the
+# reviewer rubric and the creative playbook. Excluding it once shipped an
+# image whose reviewer scored every concept near 1.7/10.
 tests/
 evals/
 scripts/
-data/
 
 # VCS
 .git/

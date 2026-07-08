@@ -51,8 +51,12 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 
-# Only the runtime package (tests, evals, scripts stay out via .dockerignore).
+# The runtime package plus the creative knowledge base. graph.py reads
+# data/vantage-creative-knowledge-base.json at runtime for the reviewer
+# rubric and the creative playbook; without it the reviewer degrades to a
+# fallback and concept quality drops. Ship it, always.
 COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser data ./data
 
 USER appuser
 EXPOSE 8000

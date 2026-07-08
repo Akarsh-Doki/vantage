@@ -30,11 +30,14 @@ test("new report runs through progress, review, and the finished report", async 
   ).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText("The read on your market")).toBeVisible()
   await expect(page.getByText("The True Cost Cup")).toBeVisible()
-  await expect(page.getByText("8.4 / 10")).toBeVisible()
   await expect(page.getByText("Coffee Retail Trade Study").first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Export PDF" }).first()).toBeVisible()
-  // The quality gate's internals never reach the customer.
+  // The AI disclosure sits under the header on every rendered report.
+  await expect(page.getByText(/AI-generated report/)).toBeVisible()
+  // The quality gate's internals never reach the customer: no warning labels,
+  // and no raw rubric numbers presented as a grade.
   await expect(page.getByText(/below the quality bar/i)).toHaveCount(0)
+  await expect(page.getByText(/\d\.\d \/ 10/)).toHaveCount(0)
 })
 
 test("a completed report opens directly from its URL", async ({ page }) => {

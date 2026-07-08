@@ -72,6 +72,16 @@ export function ReportView({
     <main className="min-h-screen bg-background">
       <ReportHeader meta={data.meta} badge={badge} backHref={backHref} actions={actions} />
 
+      {/* AI disclosure. Shared composition, so the sample and the full report
+          both carry it, and it stays in the print export on purpose: no
+          report-action-bar class (globals.css hides that class in @media
+          print). Keep the word "AI" in the text. */}
+      <div className="border-b border-hairline">
+        <p className="mx-auto max-w-[760px] px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          AI-generated report. Suggestions, not professional advice. Verify details before acting.
+        </p>
+      </div>
+
       {data.executiveSummary ? (
         <Band tone="tan" width="data">
           <Reveal>

@@ -150,6 +150,10 @@ export default function NewReportPage() {
           The pipeline researches your market and competitors, then drafts a complete campaign with
           every claim cited.
         </p>
+        <p className="mt-4 rounded-[10px] border border-hairline bg-tan/30 px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+          Don&apos;t paste patient information or other people&apos;s personal data. Inputs are
+          processed by our AI providers to generate your report.
+        </p>
 
         <form
           className="mt-9 space-y-6"

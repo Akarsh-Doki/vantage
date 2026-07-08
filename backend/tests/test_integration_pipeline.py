@@ -99,7 +99,10 @@ def integration(
         elif "marketing strategist" in system:
             text = STRATEGIST_JSON
         else:
-            text = "Short-form POV video is surging with local shops right now."
+            text = (
+                "Short-form POV video, community challenge formats, local creator"
+                " collabs, and QR scavenger hunts are surging with local shops right now."
+            )
         return ModelResponse(text=text, tokens_in=100, tokens_out=50)
 
     monkeypatch.setattr(graph_module, "call_model", fake_call_model)

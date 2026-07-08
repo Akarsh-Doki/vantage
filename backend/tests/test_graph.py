@@ -72,12 +72,29 @@ def _concept(title: str, **overrides: str) -> dict[str, str]:
     return base
 
 
+# Each entry rides its own mechanism, format, and trend: the reviewer rejects
+# twins (and _capped_delivery skips them), same as production batches must.
 CONCEPTS_JSON = json.dumps(
     [
         _concept("Safe bet: founder anvil diary"),
-        _concept("Bold swing: anvil drop challenge"),
-        _concept("Concept 3"),
-        _concept("Concept 4"),
+        _concept(
+            "Bold swing: anvil drop challenge",
+            mechanism_id="mech_y",
+            format="live in-shop stunt with a photo wall",
+            current_trend_used="community challenge formats",
+        ),
+        _concept(
+            "Concept 3",
+            mechanism_id="mech_z",
+            format="weekly email teardown series",
+            current_trend_used="local creator collabs",
+        ),
+        _concept(
+            "Concept 4",
+            mechanism_id="mech_w",
+            format="street poster scavenger hunt",
+            current_trend_used="qr scavenger hunts",
+        ),
     ]
 )
 
@@ -219,7 +236,10 @@ def pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
             )
         else:
             # Findings text: carries the trend the mocked concepts claim to use.
-            text = "Short-form POV video is surging with local shops right now."
+            text = (
+                "Short-form POV video, community challenge formats, local creator"
+                " collabs, and QR scavenger hunts are surging with local shops right now."
+            )
         return ModelResponse(text=text, tokens_in=100, tokens_out=50)
 
     def fake_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
@@ -340,6 +360,23 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     first_review = [_eval("Concept 1"), _eval("Concept 2")]
     first_review.append(_eval("Concept 3", overrides={"ownable": 2}, notes="too generic for Acme"))
     pipeline.reviewer_responses.append(json.dumps(first_review))
+    # The refill honors avoid_titles (a NEW idea), as the prompt demands; a
+    # reworded copy of a kept concept would now be rejected as a twin.
+    pipeline.creative_responses.extend(
+        [
+            CONCEPTS_JSON,
+            json.dumps(
+                [
+                    _concept(
+                        "Refill: anvil time-lapse letters",
+                        mechanism_id="mech_r",
+                        format="stop-motion letter series",
+                        current_trend_used="satisfying process clips",
+                    )
+                ]
+            ),
+        ]
+    )
     g = graph.build_graph(MemorySaver())
     config = _config("t-full")
 
@@ -506,7 +543,7 @@ def test_creative_director_fuses_mechanisms_with_live_research(
     # Concepts are parsed JSON: mechanism named, grounded in a real source.
     research_urls = {f["source_url"] for f in paused["research"]}
     for concept in paused["concepts"]:
-        assert concept["mechanism_id"] == "mech_x"
+        assert concept["mechanism_id"].startswith("mech_")
         assert concept["grounded_in"] in research_urls
         assert concept["budget_fit"]
     # The creative payload carried the date, findings, and mechanism guidance.
@@ -578,7 +615,7 @@ def test_concepts_fuse_mechanism_with_trend_from_live_findings() -> None:
     research_urls = {f["source_url"] for f in paused["research"]}
     assert paused["concepts"]
     for concept in paused["concepts"]:
-        assert concept["mechanism_id"] == "mech_x"  # names its mechanism
+        assert concept["mechanism_id"].startswith("mech_")  # names its mechanism
         assert concept["grounded_in"] in research_urls  # cites a real finding
         # The trend it claims to ride appears in the LIVE findings, not the file.
         assert concept["current_trend_used"].lower() in findings_text
@@ -894,15 +931,32 @@ def test_finalize_floor_recovers_pooled_concepts() -> None:
     state = _initial("full")
     state["concepts"] = []
     state["concept_pool"] = [
-        _concept("Pooled A") | {"score": 6.1, "rubric_scores": {}},
-        _concept("Pooled B") | {"score": 6.7, "rubric_scores": {}},
-        _concept("Pooled C") | {"score": 5.9, "rubric_scores": {}},
+        _concept(
+            "Pooled A",
+            mechanism_id="mech_a",
+            format="email series",
+            current_trend_used="newsletters",
+        )
+        | {"score": 6.1, "rubric_scores": {}},
+        _concept(
+            "Pooled B",
+            mechanism_id="mech_b",
+            format="live stunt",
+            current_trend_used="street stunts",
+        )
+        | {"score": 6.7, "rubric_scores": {}},
+        _concept(
+            "Pooled C", mechanism_id="mech_c", format="poster hunt", current_trend_used="qr hunts"
+        )
+        | {"score": 5.9, "rubric_scores": {}},
     ]
 
     result = graph.finalize(state)["result"]
 
     titles = [c["title"] for c in result["concepts"]]
-    assert titles == ["Pooled B", "Pooled A", "Pooled C"]  # best first
+    # Best first, and Pooled C (5.9) stays out: the recovery floor never
+    # ships a concept under _DELIVERY_FLOOR, even to avoid a short set.
+    assert titles == ["Pooled B", "Pooled A"]
     assert all("below_bar" not in c for c in result["concepts"])
 
 
@@ -1265,3 +1319,119 @@ def test_sample_prompts_stay_inside_competitor_only_scope(pipeline: PipelineCall
     assert any("competitor research ONLY" in s for s in systems)
     # The full-mode positioning-gap framing (which needs audience data) never runs.
     assert not any("what the audience wants" in s for s in systems)
+
+
+# --- scoring regression guards (July 2026: rubric file missing in the image) ------
+
+
+def test_reviewer_prompt_survives_missing_knowledge_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the knowledge base unreadable, the reviewer prompt once embedded an
+    EMPTY criteria list; the model scored only the two ids named in the prompt
+    prose, the other eight zero-filled, and every concept averaged ~1.7/10.
+    The fallback must put every criterion id in the prompt and the weights.
+    (__wrapped__ bypasses the lru_caches, so no cache pollution across tests.)"""
+    monkeypatch.setattr(graph, "_load_rubric", dict)
+
+    criteria = graph._rubric_criteria.__wrapped__()
+    assert {c["id"] for c in criteria} == set(graph._FALLBACK_CRITERIA)
+    assert all(c["test"] for c in criteria)  # the model gets a real test to apply
+
+    monkeypatch.setattr(graph, "_rubric_criteria", lambda: criteria)
+    system = graph._reviewer_system.__wrapped__()
+    for criterion_id in graph._FALLBACK_CRITERIA:
+        assert criterion_id in system
+
+    weights = graph._rubric_weights.__wrapped__()
+    assert set(weights) == set(graph._FALLBACK_CRITERIA)
+    # And the judge math over the fallback spans the full scale, not 0-2.
+    monkeypatch.setattr(graph, "_rubric_weights", lambda: weights)
+    score, reasons = graph._judge(
+        {"scores": dict.fromkeys(graph._FALLBACK_CRITERIA, 9), "red_flags_matched": []}
+    )
+    assert score == 9.0
+    assert reasons == []
+
+
+def test_near_duplicate_flags_twins_and_passes_distinct_concepts() -> None:
+    base = _concept("Same-Day Rebuttal", mechanism_id="mech_hijack", format="reactive quote posts")
+
+    # Same mechanism is a twin no matter how the words differ.
+    twin = _concept("Still the Alternative", mechanism_id="mech_hijack", format="reactive reel")
+    assert "same mechanism" in (graph._near_duplicate(twin, base) or "")
+
+    # Near-identical titles are twins even across mechanisms.
+    retitle = _concept(
+        "The Same-Day Rebuttal Show", mechanism_id="mech_other", format="podcast short"
+    )
+    assert "title" in (graph._near_duplicate(retitle, base) or "")
+
+    # Riding the identical trend is a twin (the shipped near-duplicates all
+    # reacted to the same listicles).
+    same_trend = _concept(
+        "Redraw the Original", mechanism_id="mech_asset", format="carousel poll"
+    )
+    assert "current_trend_used" in (graph._near_duplicate(same_trend, base) or "")
+
+    distinct = _concept(
+        "Redraw the Original",
+        mechanism_id="mech_asset",
+        format="carousel poll",
+        current_trend_used="hand-drawn logo memes",
+    )
+    assert graph._near_duplicate(distinct, base) is None
+
+
+def test_capped_delivery_floors_out_terrible_scores_and_twins() -> None:
+    kept: list[dict[str, Any]] = []
+    pool = [
+        _concept("Trash A", mechanism_id="m1", current_trend_used="t1") | {"score": 1.8},
+        _concept("Trash B", mechanism_id="m2", current_trend_used="t2") | {"score": 1.7},
+        _concept("Decent", mechanism_id="m3", format="email series", current_trend_used="t3")
+        | {"score": 6.4},
+        _concept("Decent twin", mechanism_id="m3", format="email series", current_trend_used="t3")
+        | {"score": 6.2},
+        _concept("Also decent", mechanism_id="m4", format="live stunt", current_trend_used="t4")
+        | {"score": 6.1},
+    ]
+
+    final = graph._capped_delivery(kept, pool, wanted=3)
+
+    # Two good ones ship; the 1.x rejects NEVER pad the set (a real report
+    # once showed users three concepts scored 1.6 to 1.8), and the twin of a
+    # chosen concept is skipped even though it clears the floor.
+    assert [c["title"] for c in final] == ["Decent", "Also decent"]
+    assert all(c["score"] >= graph._DELIVERY_FLOOR for c in final)
+
+
+def test_reviewer_rejects_twin_passers_so_they_regenerate(
+    pipeline: PipelineCalls,
+) -> None:
+    state = _initial("full")
+    state["research"] = [
+        {"text": "finding", "source_url": "https://rival-a.example/pricing", "title": "t"}
+    ]
+    state["concepts"] = [
+        _concept("First idea", mechanism_id="mech_same", current_trend_used="trend one"),
+        _concept(
+            "Second idea",
+            mechanism_id="mech_same",  # twin: same mechanism as the kept passer
+            format="live in-shop stunt",
+            current_trend_used="trend two",
+        ),
+    ]
+    pipeline.reviewer_responses.append(
+        json.dumps([_eval("First idea"), _eval("Second idea")])  # both pass the rubric
+    )
+
+    out = graph.reviewer(state)
+
+    assert [c["title"] for c in out["concepts"]] == ["First idea"]
+    assert out["review"]["verdict"] == "weak"  # the twin goes back for regeneration
+    rejected = out["review"]["rejected"]
+    assert len(rejected) == 1
+    assert "same mechanism" in rejected[0]["reasons"][0]
+    # The twin still enters the pool as a scored candidate (harmless: delivery
+    # skips same-mechanism twins anyway).
+    assert any(c["title"] == "Second idea" for c in out["concept_pool"])

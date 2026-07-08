@@ -31,30 +31,27 @@ export function CreativeConcepts({
           const source = c.sourceIndex !== undefined ? sources[c.sourceIndex] : undefined
           return (
             <article key={c.title} className="relative rounded-[10px] border border-hairline bg-white p-6 md:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-[6px] bg-tan px-2 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-forest">
-                      {c.mechanism}
-                    </span>
-                    {c.mechanismId ? (
-                      <span className="font-mono text-[11px] text-muted-foreground">{c.mechanismId}</span>
-                    ) : null}
-                    {c.format ? (
-                      <span className="inline-flex items-center rounded-[6px] border border-hairline px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                        {c.format}
-                      </span>
-                    ) : null}
-                  </div>
-                  <h3 className="mt-3 font-serif text-2xl font-medium tracking-tight">
-                    {String(idx + 1).padStart(2, "0")} · {c.title}
-                  </h3>
-                </div>
-                {c.score ? (
-                  <span className="shrink-0 rounded-full border border-forest/20 bg-forest/5 px-3 py-1 font-mono text-sm font-semibold text-forest">
-                    {c.score}
+              {/* The raw rubric score is intentionally not rendered: it is
+                  review machinery, and a topped-up concept's number would
+                  read as a grade. The section lede already says every concept
+                  was scored before it reached the page. */}
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-[6px] bg-tan px-2 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-forest">
+                    {c.mechanism}
                   </span>
-                ) : null}
+                  {c.mechanismId ? (
+                    <span className="font-mono text-[11px] text-muted-foreground">{c.mechanismId}</span>
+                  ) : null}
+                  {c.format ? (
+                    <span className="inline-flex items-center rounded-[6px] border border-hairline px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                      {c.format}
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="mt-3 font-serif text-2xl font-medium tracking-tight">
+                  {String(idx + 1).padStart(2, "0")} · {c.title}
+                </h3>
               </div>
 
               <div className="mt-5 space-y-5">
