@@ -71,3 +71,8 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]                  # tests import the app package by absolute path
+markers = [
+    "rls: SQL-level Row-Level-Security policy tests; need TEST_DATABASE_URL (Postgres)",
+]
+# The RLS tier is opt-in (needs a database); everything else always runs.
+addopts = "-m 'not rls'"
