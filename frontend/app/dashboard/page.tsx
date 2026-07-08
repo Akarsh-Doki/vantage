@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Check, FileText, Pencil, Trash2, X } from "lucide-react"
 import { AppHeader } from "@/components/app/app-header"
+import { ConfirmDialog } from "@/components/app/confirm-dialog"
 import { StatusBadge } from "@/components/app/status-badge"
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState("")
   const [renaming, setRenaming] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ReportSummary | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -79,8 +81,8 @@ export default function DashboardPage() {
     }
   }
 
+  // Confirmation happens in the in-app ConfirmDialog, never window.confirm.
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this report? This can't be undone.")) return
     setDeletingId(id)
     setError(null)
     const previous = reports
@@ -99,6 +101,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-svh bg-background">
+      {deleteTarget ? (
+        <ConfirmDialog
+          title="Delete this report?"
+          body={`"${deleteTarget.name ?? kindLabel(deleteTarget.kind)}" will be deleted. This cannot be undone.`}
+          confirmLabel="Delete report"
+          busy={deletingId === deleteTarget.run_id}
+          onConfirm={() => {
+            const id = deleteTarget.run_id
+            setDeleteTarget(null)
+            void handleDelete(id)
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
+      ) : null}
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 md:py-14">
         <div className="flex items-end justify-between gap-4">
@@ -225,7 +241,7 @@ export default function DashboardPage() {
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => void handleDelete(run.run_id)}
+                    onClick={() => setDeleteTarget(run)}
                     disabled={deletingId === run.run_id}
                     aria-label="Delete report"
                     className="rounded-[10px] p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"

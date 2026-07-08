@@ -13,6 +13,7 @@ import type {
   Source,
 } from "@/lib/report-types"
 import type { ReportResult } from "@/lib/types"
+import { formatReportDate } from "@/lib/utils"
 
 /*
  * Maps the backend deliverable (GET /reports/{id} -> report) onto the same
@@ -49,6 +50,7 @@ function cleanText(text: string): string {
     .replace(/[*`]/g, " ")
     .replace(/\p{Extended_Pictographic}/gu, " ")
     .replace(/[\u2190-\u21ff]/g, " ")
+    .replace(/\u00ad/g, "")
     .replace(/[\u200b-\u200d\u2060\ufeff\u2028\u2029\u00a0\u202f\u2007]/g, " ")
     .replace(/(\d)\s*[\u2013\u2014]\s*(\d)/g, "$1 to $2")
     .replace(/\s*[\u2013\u2014]\s*/g, ", ")
@@ -445,16 +447,17 @@ function toConcept(
 }
 
 /** Legacy rows may still hold the retired "(unparsed creative output)"
- * placeholder or a raw JSON blob in execution; those never render. */
+ * placeholder or a raw JSON blob in execution; those never render. Only
+ * text that actually looks like serialized JSON is dropped, so a legitimate
+ * execution that happens to open with a bracket still renders. */
 function isRenderableConcept(concept: CreativeConcept): boolean {
   if (concept.title === "(unparsed creative output)") return false
-  const execution = concept.execution.trim()
-  return !execution.startsWith("[") && !execution.startsWith("{")
+  return !/^[[{]\s*"/.test(concept.execution.trim())
 }
 
 export function toReportData(
   result: ReportResult,
-  run: { kind: string; name?: string | null },
+  run: { kind: string; name?: string | null; createdAt?: string | null },
 ): ReportData {
   const sources = toSources(result.sources ?? [])
   const indexByKey = new Map(sources.map((s, i) => [urlKey(s.url ?? ""), i]))
@@ -500,6 +503,10 @@ export function toReportData(
   }
   if (sources.length > 0) {
     chips.push({ label: "Sources cited", value: String(sources.length) })
+  }
+  const created = formatReportDate(run.createdAt)
+  if (created) {
+    chips.push({ label: "Created", value: created })
   }
 
   const quoteText = pullQuote ? cleanText(String(pullQuote.text ?? "")) : ""

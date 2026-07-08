@@ -58,8 +58,13 @@ def create_report(
         raise HTTPException(status_code=code, detail=reason)
 
     business = report.to_business()
+    # Snapshot names BEFORE creating this run so it never collides with itself.
+    taken = db.existing_run_names(user_id)
     project_id = db.create_project(user_id, business)
     run_id = db.create_run(user_id, project_id, kind="full")
+    numbered = db.disambiguate_name(str(business["name"]), taken)
+    if numbered:
+        db.rename_run(run_id, user_id, numbered)
     # Bound concurrent graph runs with the global slot (rule 7).
     background.add_task(
         limits.run_with_slot, runner.execute_run, run_id, project_id, user_id, business, "full"
@@ -105,6 +110,8 @@ def get_report(run_id: UUID, user_id: UserId) -> RunStatus:
             creative=report.get("creative"),
             sources=report.get("sources"),
         )
+    project = run.get("projects") or {}
+    business_name = project.get("business_name") if isinstance(project, dict) else None
     return RunStatus(
         run_id=str(run["id"]),
         kind=str(run["kind"]),
@@ -112,6 +119,8 @@ def get_report(run_id: UUID, user_id: UserId) -> RunStatus:
         current_step=run.get("current_step"),
         error=run.get("error"),
         name=_run_name(run),
+        business_name=str(business_name) if business_name else None,
+        created_at=run.get("created_at"),
         report=report_payload,
     )
 

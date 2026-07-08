@@ -58,7 +58,9 @@ _FINDING_TOKENS = {"full": 250, "sample": 120}
 # competitor table, persona, positioning, kpis, and the numeric charts).
 _SYNTHESIS_TOKENS = {"full": 3200, "sample": 600}
 _STRATEGY_TOKENS = {"full": 2800, "sample": 500}
-_CREATIVE_TOKENS = {"full": 4000, "sample": 900}
+# Full-mode headroom matters: a reply truncated mid-array parses to zero
+# concepts, and a retry at the same cap truncates the same way.
+_CREATIVE_TOKENS = {"full": 5000, "sample": 900}
 _MECHANISMS_K = {"full": 5, "sample": 2}  # creative mechanisms retrieved per run
 _CONCEPTS_WANTED = {"full": 3, "sample": 1}  # full mode asks for 3 concepts
 _RETRIEVAL_QUERY_CHARS = 500
@@ -575,6 +577,7 @@ def _clean_text(text: str) -> str:
     line = _MD_BULLET_RE.sub("", line)
     line = line.replace("**", " ").replace("__", " ").replace("`", " ").replace("*", " ")
     line = _EMOJI_RE.sub(" ", line)
+    line = line.replace("\u00ad", "")  # soft hyphen: mid-word, remove outright
     line = _INVISIBLE_SEPARATOR_RE.sub(" ", line)
     line = re.sub("(?<=\\d)\\s*[\\u2013\\u2014]\\s*(?=\\d)", " to ", line)  # digit ranges: "to"
     line = re.sub("\\s*[\\u2013\\u2014]\\s*", ", ", line)
@@ -1434,7 +1437,7 @@ def creative_director(state: State) -> dict[str, Any]:
         "avoid_titles": sorted(
             {
                 str(c.get("title", ""))
-                for c in [*kept, *state.get("review", {}).get("candidate_pool", [])]
+                for c in [*kept, *(state.get("concept_pool") or [])]
                 if c.get("title")
             }
         ),
@@ -1488,22 +1491,36 @@ def _capped_delivery(
     return final
 
 
+def _review_empty_batch(state: State) -> dict[str, Any]:
+    """Nothing parseable came out of creative (even after its retry). While
+    retries remain, send the loop back for fresh concepts; once exhausted,
+    deliver the best pooled candidates from earlier rounds. This exact path
+    once shipped a report with ZERO concepts: every exit now delivers
+    whatever the run produced, and the pool channel is never wiped."""
+    if state["step_count"] > _MAX_REVIEW_LOOPS:
+        pool = list(state.get("concept_pool") or [])
+        final = _capped_delivery([], pool, _CONCEPTS_WANTED[state["mode"]])
+        logger.warning("empty final creative batch; delivering %d pooled candidate(s)", len(final))
+        return {
+            "concepts": final,
+            "review": {"verdict": "capped", "notes": "empty final batch; delivered pool"},
+        }
+    return {
+        "review": {
+            "verdict": "weak",
+            "notes": "No usable concepts were produced. Generate fresh concepts and reply"
+            " with ONLY the JSON array of concept objects.",
+            "rejected": [],
+        }
+    }
+
+
 def reviewer(state: State) -> dict[str, Any]:
     """Score every concept on the rubric; keep passers (with their scores),
     reject the rest with reasons that flow back to creative_director."""
     concepts = state["concepts"]
     if not concepts:
-        # Nothing parseable came out of creative (even after its retry). There
-        # is nothing to score: send the loop back for fresh concepts instead
-        # of asking the reviewer to grade an empty batch.
-        return {
-            "review": {
-                "verdict": "weak",
-                "notes": "No usable concepts were produced. Generate fresh concepts and reply"
-                " with ONLY the JSON array of concept objects.",
-                "rejected": [],
-            }
-        }
+        return _review_empty_batch(state)
     try:
         text = call_model(
             SONNET,
@@ -1532,8 +1549,10 @@ def reviewer(state: State) -> dict[str, Any]:
     # Scored non-passers from EVERY round, same shape as kept (score +
     # rubric_scores, no flags). If the loop exhausts short of the target, the
     # best of this pool top up the delivery, so a full report never ships one
-    # lonely concept and never ships one wearing a warning label.
-    pool: list[dict[str, Any]] = list(state.get("review", {}).get("candidate_pool", []))
+    # lonely concept and never ships one wearing a warning label. The pool
+    # lives in its own state channel: nothing that rewrites the review dict
+    # can wipe it.
+    pool: list[dict[str, Any]] = list(state.get("concept_pool") or [])
     for i, concept in enumerate(concepts):
         evaluation = evaluations[i] if i < len(evaluations) else None
         if evaluation is None:
@@ -1577,12 +1596,8 @@ def reviewer(state: State) -> dict[str, Any]:
     notes = "Rejected concepts to replace: " + json.dumps(rejected, sort_keys=True)
     return {
         "concepts": kept,
-        "review": {
-            "verdict": "weak",
-            "notes": notes,
-            "rejected": rejected,
-            "candidate_pool": pool,
-        },
+        "concept_pool": pool,
+        "review": {"verdict": "weak", "notes": notes, "rejected": rejected},
     }
 
 
@@ -1603,11 +1618,21 @@ def finalize(state: State) -> dict[str, Any]:
     # (grounded_in URLs) is resolved to source_n here, in code, never by a model.
     sources = _numbered_sources(state["research"])
     by_url = _n_by_url(sources)
+    concepts = state["concepts"]
+    if not concepts and state["mode"] == "full":
+        # Last line of defense: the concepts section is the core deliverable,
+        # so if every loop exit somehow left the batch empty, recover the
+        # best-scoring pooled candidates rather than finalize without it.
+        concepts = _capped_delivery(
+            [], list(state.get("concept_pool") or []), _CONCEPTS_WANTED["full"]
+        )
+        if concepts:
+            logger.warning("finalize floor engaged: recovered %d pooled concept(s)", len(concepts))
     result: dict[str, Any] = {
         "plan": state["plan"],
         "brief": state["brief"],
         "strategy": state["strategy"],
-        "concepts": [_presentable_concept(c, by_url) for c in state["concepts"]],
+        "concepts": [_presentable_concept(c, by_url) for c in concepts],
         "review": state.get("review", {}),
         "sources": sources,
     }

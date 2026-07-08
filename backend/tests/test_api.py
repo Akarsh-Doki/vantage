@@ -146,6 +146,14 @@ class FakeStore:
             return True
         return False
 
+    def existing_run_names(self, user_id: str) -> set[str]:
+        names = set()
+        for run in self.list_runs(user_id):
+            value = run.get("display_name") or run["projects"].get("business_name")
+            if value:
+                names.add(str(value))
+        return names
+
     def insert_report(
         self, user_id: str, project_id: str, run_id: str, kind: str, result: dict[str, Any]
     ) -> None:
@@ -231,6 +239,7 @@ _DB_API = (
     "get_run",
     "list_runs",
     "rename_run",
+    "existing_run_names",
     "insert_report",
     "get_report",
     "report_run_ids",
@@ -452,6 +461,62 @@ def test_approve_resumes_only_awaiting_review_runs(
         f"/reports/{run_id}/approve", json={"approved": True}, headers=_auth(USER_A)
     )
     assert again.status_code == 409
+
+
+def test_duplicate_report_names_are_auto_numbered(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, _, _ = api
+
+    first = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+    second = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+    third = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+
+    names = {
+        r["run_id"]: r["name"] for r in client.get("/reports", headers=_auth(USER_A)).json()["runs"]
+    }
+    # The first keeps the bare name; only true collisions get a number.
+    assert names[first] == "Acme Anvils"
+    assert names[second] == "Acme Anvils (2)"
+    assert names[third] == "Acme Anvils (3)"
+
+    # Another user's identically named report is NOT a collision.
+    other = client.post("/reports", json=BODY, headers=_auth(USER_B)).json()["run_id"]
+    other_names = {
+        r["run_id"]: r["name"] for r in client.get("/reports", headers=_auth(USER_B)).json()["runs"]
+    }
+    assert other_names[other] == "Acme Anvils"
+
+
+def test_auto_numbering_respects_manual_renames(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, store, _ = api
+    first = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+    client.patch(f"/reports/{first}", json={"name": "Spring push"}, headers=_auth(USER_A))
+
+    # The bare name is free again, so the next report takes it un-numbered,
+    # and the manual rename is never renumbered.
+    second = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+
+    names = {
+        r["run_id"]: r["name"] for r in client.get("/reports", headers=_auth(USER_A)).json()["runs"]
+    }
+    assert names[first] == "Spring push"
+    assert names[second] == "Acme Anvils"
+    assert store.runs[first]["display_name"] == "Spring push"
+
+
+def test_detail_includes_created_at_and_business_name(
+    api: tuple[TestClient, FakeStore, FakeGraph],
+) -> None:
+    client, _, _ = api
+    run_id = client.post("/reports", json=BODY, headers=_auth(USER_A)).json()["run_id"]
+
+    detail = client.get(f"/reports/{run_id}", headers=_auth(USER_A)).json()
+
+    assert detail["created_at"] == "2026-07-03T00:00:00+00:00"
+    assert detail["business_name"] == "Acme Anvils"
 
 
 def test_rename_persists_and_flows_into_list_and_detail(

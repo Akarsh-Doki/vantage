@@ -79,6 +79,20 @@ def test_is_blocked_source_covers_subdomains_and_bad_urls() -> None:
     assert search.is_blocked_source("not a url") is False
 
 
+def test_social_and_review_listing_sources_are_blocked() -> None:
+    # The exact offenders from a real run, plus their class.
+    for url in (
+        "https://m.yelp.com/biz/blue-bottle-coffee",
+        "https://www.instagram.com/p/xyz/",
+        "https://www.tiktok.com/@someone/video/1",
+        "https://www.tripadvisor.com/Restaurant_Review",
+    ):
+        assert search.is_blocked_source(url) is True, url
+    # Legitimate industry publications stay citable.
+    for url in ("https://www.coffeebi.com/report", "https://sca.coffee/research"):
+        assert search.is_blocked_source(url) is False, url
+
+
 def test_identical_search_is_served_from_cache(fake_tavily: MagicMock) -> None:
     fake_tavily.search.return_value = TAVILY_RESPONSE
 

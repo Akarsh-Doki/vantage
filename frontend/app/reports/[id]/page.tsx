@@ -15,6 +15,7 @@ import { usePollReport } from "@/hooks/use-poll-report"
 import { api } from "@/lib/api"
 import { toReportData } from "@/lib/report-adapter"
 import type { ReportStatus } from "@/lib/types"
+import { formatReportDate, pdfFileName } from "@/lib/utils"
 
 const TITLES: Record<ReportStatus, string> = {
   queued: "Building your campaign",
@@ -96,11 +97,27 @@ export default function ReportRunPage() {
   // ----- finished: full and sample render with the same report components -----
   if (status === "done" && report?.report) {
     const isSample = report.kind === "sample"
-    const data = toReportData(report.report, { kind: report.kind, name: reportName })
+    const data = toReportData(report.report, {
+      kind: report.kind,
+      name: reportName,
+      createdAt: report.created_at,
+    })
+    // The browser names the saved PDF after document.title, so swap it in for
+    // the duration of the print and restore it afterwards.
+    const exportPdf = () => {
+      const original = document.title
+      document.title = pdfFileName(report.business_name, reportName ?? data.meta.business)
+      const restore = () => {
+        document.title = original
+        window.removeEventListener("afterprint", restore)
+      }
+      window.addEventListener("afterprint", restore)
+      window.print()
+    }
     const exportButton = (
       <button
         type="button"
-        onClick={() => window.print()}
+        onClick={exportPdf}
         className="inline-flex items-center gap-2 rounded-[10px] bg-forest px-4 py-2 text-sm font-medium text-forest-foreground transition-colors hover:bg-forest-hover"
       >
         <Download className="h-4 w-4" />
@@ -288,7 +305,11 @@ export default function ReportRunPage() {
             ) : null}
 
             <p className="mt-10 font-mono text-[11px] text-muted-foreground">
-              {report.kind === "sample" ? "Free sample" : "Full report"} &middot; {report.run_id}
+              {report.kind === "sample" ? "Free sample" : "Full report"}
+              {formatReportDate(report.created_at) ? (
+                <> &middot; {formatReportDate(report.created_at)}</>
+              ) : null}{" "}
+              &middot; {report.run_id}
             </p>
           </>
         ) : null}

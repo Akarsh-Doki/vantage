@@ -141,6 +141,7 @@ def _initial_state(business: dict[str, Any], mode: str) -> dict[str, Any]:
         "brief": {},
         "strategy": {},
         "concepts": [],
+        "concept_pool": [],
         "review": {},
         "result": {},
         "step_count": 0,

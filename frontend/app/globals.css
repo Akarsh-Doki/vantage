@@ -67,7 +67,8 @@
   --muted-foreground: oklch(0.505 0.012 95);
   --accent: oklch(0.912 0.014 92);
   --accent-foreground: oklch(0.33 0.048 158);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Deep brick red #9B2C2C for destructive actions and error text */
+  --destructive: #9b2c2c;
   /* Hairline border #EAE8E2 */
   --border: oklch(0.912 0.006 92);
   --input: oklch(0.912 0.006 92);
@@ -90,6 +91,13 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Anything clickable shows the hand cursor (browsers default buttons to
+     the arrow); disabled controls keep the default arrow. */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  summary {
+    cursor: pointer;
   }
 }
 
@@ -301,10 +309,40 @@
     text-shadow: none !important;
   }
 
+  /*
+    Jammed-words fix for the PDF export. Negative letter-spacing (the serif
+    headings' tracking-tight) on the Fraunces webfont collapses the space
+    glyph's advance in Chrome's print-to-PDF text layer, so titles, pull
+    quotes, and pillar headings read as "BlueBottle" / "we'lltrack" in the
+    exported file even though the DOM text is correct. Print gets neutral
+    tracking, explicit word spacing, and no ligatures; the screen keeps the
+    tight editorial look.
+  */
+  * {
+    letter-spacing: normal !important;
+    word-spacing: normal !important;
+    font-variant-ligatures: none !important;
+    font-kerning: normal !important;
+  }
+
   /* Avoid awkward breaks inside cards/headings */
   h1,
   h2,
   h3 {
     break-after: avoid;
+  }
+
+  /* Keep cards, table rows, figures, and cite lines whole across pages so
+     nothing renders half-clipped at a page boundary in the export. */
+  article,
+  figure,
+  table,
+  tr,
+  li {
+    break-inside: avoid;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
   }
 }

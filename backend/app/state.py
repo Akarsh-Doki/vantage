@@ -20,6 +20,11 @@ class State(TypedDict):
     brief: dict[str, Any]
     strategy: dict[str, Any]
     concepts: list[dict[str, Any]]
+    # Every scored candidate from every review round (passers excluded). Its
+    # own channel on purpose: review-dict updates must never wipe it, because
+    # it is the safety net that guarantees a report is never delivered with
+    # zero concepts.
+    concept_pool: list[dict[str, Any]]
     review: dict[str, Any]
     result: dict[str, Any]
     step_count: int

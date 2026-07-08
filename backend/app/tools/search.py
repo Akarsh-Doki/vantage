@@ -76,6 +76,18 @@ BLOCKED_DOMAINS: tuple[str, ...] = (
     "flavorycooking.com",
     "byflorr.com",
     "beanofcoffee.com",
+    # social posts and review-listing pages: fine products, not citations
+    # (m.yelp.com and friends are caught by the subdomain match)
+    "yelp.com",
+    "instagram.com",
+    "tiktok.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "threads.net",
+    "tripadvisor.com",
+    "trustpilot.com",
+    "foursquare.com",
 )
 
 # Rule 7: the backend is a long-lived process — the cache must not grow forever.

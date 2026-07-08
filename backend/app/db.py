@@ -90,6 +90,31 @@ def get_run(run_id: str, user_id: str) -> dict[str, Any] | None:
     return rows[0] if rows else None
 
 
+def existing_run_names(user_id: str) -> set[str]:
+    """Every name this user's runs currently answer to (display_name, or the
+    project business name it falls back to). Used at creation time to append
+    a number to true collisions; manual renames are never renumbered."""
+    names: set[str] = set()
+    for run in list_runs(user_id):
+        project = run.get("projects") or {}
+        fallback = project.get("business_name") if isinstance(project, dict) else None
+        value = run.get("display_name") or fallback
+        if value:
+            names.add(str(value))
+    return names
+
+
+def disambiguate_name(base: str, existing: set[str]) -> str | None:
+    """None when `base` is free (the first report keeps the bare name);
+    otherwise the first free "base (n)" counting from 2. Pure on purpose."""
+    if base not in existing:
+        return None
+    n = 2
+    while f"{base} ({n})" in existing:
+        n += 1
+    return f"{base} ({n})"
+
+
 def rename_run(run_id: str, user_id: str, name: str) -> bool:
     """Set the user-facing display name; False when the run isn't the caller's."""
     rows = _rows(

@@ -45,8 +45,13 @@ async def create_sample(
         )
 
     business = report.to_business()
+    # Snapshot names BEFORE creating this run so it never collides with itself.
+    taken = await run_in_threadpool(db.existing_run_names, user_id)
     project_id = await run_in_threadpool(db.create_project, user_id, business)
     run_id = await run_in_threadpool(db.create_run, user_id, project_id, "sample")
+    numbered = db.disambiguate_name(str(business["name"]), taken)
+    if numbered:
+        await run_in_threadpool(db.rename_run, run_id, user_id, numbered)
     # Bound concurrent graph runs with the global slot (rule 7), same as /reports.
     background.add_task(
         limits.run_with_slot, runner.execute_run, run_id, project_id, user_id, business, "sample"

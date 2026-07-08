@@ -266,6 +266,7 @@ def _initial(mode: Literal["full", "sample"]) -> State:
         "brief": {},
         "strategy": {},
         "concepts": [],
+        "concept_pool": [],
         "review": {},
         "result": {},
         "step_count": 0,
@@ -859,6 +860,52 @@ def test_competitor_agent_fetches_the_users_named_competitor_sites(
     assert out["research"][0]["title"] == "rival-x.example"
 
 
+def test_zero_concepts_regression_pool_survives_empty_rounds(
+    pipeline: PipelineCalls,
+) -> None:
+    """The exact path that shipped a report with ZERO concepts: an all-reject
+    round empties the working batch, later creative rounds fail to parse
+    (both attempts), and the loop exhausts on an empty batch. The pooled
+    candidates from round one must still be delivered, a full unlabeled set."""
+    pipeline.reviewer_reject_all = True
+    pipeline.creative_responses.extend(
+        [
+            CONCEPTS_JSON,  # round 1 parses fine; the reviewer rejects all 3
+            "no json",  # round 2, first attempt
+            "still no json",  # round 2, format retry
+            "nope",  # round 3, first attempt
+            "still nope",  # round 3, format retry
+        ]
+    )
+    g = graph.build_graph(MemorySaver())
+
+    paused = g.invoke(_initial("full"), _config("t-zero-regression"))
+
+    assert "__interrupt__" in paused
+    assert len(paused["concepts"]) == graph._CONCEPTS_WANTED["full"]
+    for concept in paused["concepts"]:
+        assert "score" in concept
+        assert "below_bar" not in concept
+    assert paused["review"]["verdict"] == "capped"
+    assert "(unparsed" not in json.dumps(paused["concepts"])
+
+
+def test_finalize_floor_recovers_pooled_concepts() -> None:
+    state = _initial("full")
+    state["concepts"] = []
+    state["concept_pool"] = [
+        _concept("Pooled A") | {"score": 6.1, "rubric_scores": {}},
+        _concept("Pooled B") | {"score": 6.7, "rubric_scores": {}},
+        _concept("Pooled C") | {"score": 5.9, "rubric_scores": {}},
+    ]
+
+    result = graph.finalize(state)["result"]
+
+    titles = [c["title"] for c in result["concepts"]]
+    assert titles == ["Pooled B", "Pooled A", "Pooled C"]  # best first
+    assert all("below_bar" not in c for c in result["concepts"])
+
+
 def test_capped_delivery_result_carries_no_internal_review_keys(
     pipeline: PipelineCalls,
 ) -> None:
@@ -888,6 +935,7 @@ def test_clean_text_replaces_stripped_tokens_with_spaces() -> None:
     assert graph._clean_text("treat\u200btheir customers") == "treat their customers"
     assert graph._clean_text("Blue\u00a0Bottle") == "Blue Bottle"
     assert graph._clean_text("well\u2028designed") == "well designed"
+    assert graph._clean_text("ex\u00adample word") == "example word"
     plain = "normal spacing stays. Just fine."
     assert graph._clean_text(plain) == plain
 

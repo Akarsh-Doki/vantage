@@ -113,6 +113,9 @@ class RunStatus(BaseModel):
     current_step: str | None = None
     error: str | None = None
     name: str | None = None
+    # the project's business name (for display and the export filename)
+    business_name: str | None = None
+    created_at: str | None = None
     report: ReportPayload | None = None
 
 

@@ -147,6 +147,9 @@ export interface Report {
   error: string | null
   /** user-chosen name, falling back to the project's business name */
   name: string | null
+  /** the project's business name (display and export filename) */
+  business_name: string | null
+  created_at: string | null
   /** present only when status === "completed" */
   report: ReportResult | null
 }
