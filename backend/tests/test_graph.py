@@ -388,14 +388,16 @@ def test_full_mode_fans_out_loops_on_weak_review_and_pauses_for_human(
     # The url-less search result was dropped: 3 agents x 2 cited findings.
     assert len(paused["research"]) == 6
     assert all(f["source_url"] for f in paused["research"])
-    # The reject sent creative back exactly once, asking for ONE replacement,
-    # carrying the machine-computed reason, the reviewer's note, and the kept set.
+    # The reject sent creative back exactly once, asking for the shortfall
+    # plus one spare candidate, carrying the machine-computed reason, the
+    # reviewer's note, the kept set, and the kept mechanisms to avoid.
     creative_calls = [c for c in pipeline.models if "creative director" in c["system"]]
     assert len(creative_calls) == 2
-    assert '"concepts_wanted": 1' in creative_calls[1]["user"]
+    assert '"concepts_wanted": 2' in creative_calls[1]["user"]
     assert "fails ownable" in creative_calls[1]["user"]
     assert "too generic for Acme" in creative_calls[1]["user"]
     assert '"kept_concepts"' in creative_calls[1]["user"]
+    assert '"avoid_mechanisms": ["mech_x", "mech_y"]' in creative_calls[1]["user"]
     # Passing concepts were kept and every survivor carries its rubric score.
     assert len(paused["concepts"]) == 3
     assert all("score" in c and "rubric_scores" in c for c in paused["concepts"])
@@ -912,6 +914,8 @@ def test_zero_concepts_regression_pool_survives_empty_rounds(
             "still no json",  # round 2, format retry
             "nope",  # round 3, first attempt
             "still nope",  # round 3, format retry
+            "round 4 nope",  # round 4, first attempt
+            "round 4 still nope",  # round 4, format retry
         ]
     )
     g = graph.build_graph(MemorySaver())
@@ -927,7 +931,7 @@ def test_zero_concepts_regression_pool_survives_empty_rounds(
     assert "(unparsed" not in json.dumps(paused["concepts"])
 
 
-def test_finalize_floor_recovers_pooled_concepts() -> None:
+def test_finalize_floor_recovers_pooled_concepts(caplog: pytest.LogCaptureFixture) -> None:
     state = _initial("full")
     state["concepts"] = []
     state["concept_pool"] = [
@@ -951,13 +955,16 @@ def test_finalize_floor_recovers_pooled_concepts() -> None:
         | {"score": 5.9, "rubric_scores": {}},
     ]
 
-    result = graph.finalize(state)["result"]
+    with caplog.at_level(logging.ERROR):
+        result = graph.finalize(state)["result"]
 
     titles = [c["title"] for c in result["concepts"]]
     # Best first, and Pooled C (5.9) stays out: the recovery floor never
     # ships a concept under _DELIVERY_FLOOR, even to avoid a short set.
     assert titles == ["Pooled B", "Pooled A"]
     assert all("below_bar" not in c for c in result["concepts"])
+    # A short set is the absolute last resort and is NEVER silent.
+    assert "SHORT DELIVERY: finalizing with 2 of 3" in caplog.text
 
 
 def test_capped_delivery_result_carries_no_internal_review_keys(
@@ -1367,23 +1374,19 @@ def test_near_duplicate_flags_twins_and_passes_distinct_concepts() -> None:
     )
     assert "title" in (graph._near_duplicate(retitle, base) or "")
 
-    # Riding the identical trend is a twin (the shipped near-duplicates all
-    # reacted to the same listicles).
+    # Sharing a trend is NOT a twin: research often surfaces one dominant
+    # trend, and two concepts with different mechanisms and formats are
+    # legitimately distinct (the same-trend rule once filtered a real
+    # delivery down to one concept).
     same_trend = _concept(
         "Redraw the Original", mechanism_id="mech_asset", format="carousel poll"
     )
-    assert "current_trend_used" in (graph._near_duplicate(same_trend, base) or "")
-
-    distinct = _concept(
-        "Redraw the Original",
-        mechanism_id="mech_asset",
-        format="carousel poll",
-        current_trend_used="hand-drawn logo memes",
-    )
-    assert graph._near_duplicate(distinct, base) is None
+    assert graph._near_duplicate(same_trend, base) is None
 
 
-def test_capped_delivery_floors_out_terrible_scores_and_twins() -> None:
+def test_capped_delivery_fills_the_set_distinct_first_never_with_trash(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     kept: list[dict[str, Any]] = []
     pool = [
         _concept("Trash A", mechanism_id="m1", current_trend_used="t1") | {"score": 1.8},
@@ -1396,13 +1399,26 @@ def test_capped_delivery_floors_out_terrible_scores_and_twins() -> None:
         | {"score": 6.1},
     ]
 
-    final = graph._capped_delivery(kept, pool, wanted=3)
+    with caplog.at_level(logging.ERROR):
+        final = graph._capped_delivery(kept, pool, wanted=3)
 
-    # Two good ones ship; the 1.x rejects NEVER pad the set (a real report
-    # once showed users three concepts scored 1.6 to 1.8), and the twin of a
-    # chosen concept is skipped even though it clears the floor.
-    assert [c["title"] for c in final] == ["Decent", "Also decent"]
+    # Distinct candidates fill first; the twin fills the LAST slot rather
+    # than shipping a short set (a real report once showed one concept),
+    # and that relaxation is loud in the logs. The 1.x rejects NEVER pad
+    # the set (another real report once showed three of those).
+    assert [c["title"] for c in final] == ["Decent", "Also decent", "Decent twin"]
     assert all(c["score"] >= graph._DELIVERY_FLOOR for c in final)
+    assert "relaxed distinctness" in caplog.text
+
+    # With enough distinct supply, no relaxation happens at all.
+    caplog.clear()
+    pool.append(
+        _concept("Third distinct", mechanism_id="m5", format="poster hunt") | {"score": 6.0}
+    )
+    with caplog.at_level(logging.ERROR):
+        final = graph._capped_delivery(kept, pool, wanted=3)
+    assert [c["title"] for c in final] == ["Decent", "Also decent", "Third distinct"]
+    assert caplog.text == ""
 
 
 def test_reviewer_rejects_twin_passers_so_they_regenerate(
@@ -1435,3 +1451,36 @@ def test_reviewer_rejects_twin_passers_so_they_regenerate(
     # The twin still enters the pool as a scored candidate (harmless: delivery
     # skips same-mechanism twins anyway).
     assert any(c["title"] == "Second idea" for c in out["concept_pool"])
+
+
+def test_reviewer_trims_overflow_passers_to_target_and_pools_the_spare(
+    pipeline: PipelineCalls,
+) -> None:
+    """Revision rounds over-generate one spare, so four distinct concepts can
+    all pass. The delivery is exactly three (the best), and the spare stays
+    in the pool as a ready floor-clearing backup."""
+    state = _initial("full")
+    state["research"] = [
+        {"text": "finding", "source_url": "https://rival-a.example/pricing", "title": "t"}
+    ]
+    state["concepts"] = json.loads(CONCEPTS_JSON)  # four pairwise-distinct concepts
+    pipeline.reviewer_responses.append(
+        json.dumps(
+            [
+                _eval("Safe bet: founder anvil diary"),
+                _eval("Bold swing: anvil drop challenge"),
+                _eval("Concept 3"),
+                # Lowest weighted total of the four: this one gets pooled.
+                _eval("Concept 4", overrides={"shareable": 6, "earns_attention": 6}),
+            ]
+        )
+    )
+
+    out = graph.reviewer(state)
+
+    assert out["review"]["verdict"] == "strong"
+    titles = [c["title"] for c in out["concepts"]]
+    assert len(titles) == graph._CONCEPTS_WANTED["full"]
+    assert "Concept 4" not in titles
+    assert any(c["title"] == "Concept 4" for c in out["concept_pool"])
+    assert all(c["score"] >= graph._MIN_SCORE for c in out["concepts"])

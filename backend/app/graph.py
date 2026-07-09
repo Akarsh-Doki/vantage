@@ -48,7 +48,10 @@ from app.tools.search import is_blocked_source, search_web, source_host
 logger = logging.getLogger(__name__)
 
 RECURSION_LIMIT = 25  # rule 7: nothing in this graph may run away
-_MAX_REVIEW_LOOPS = 2  # reviewer may send work back to creative at most twice
+# Reviewer may send work back to creative at most this many times. Three
+# bounded loops (plus a spare candidate per revision round) exist to fill
+# three DISTINCT slots reliably; the cap still bounds runaway cost (rule 7).
+_MAX_REVIEW_LOOPS = 3
 
 # Per-mode caps — sample mode is a cheap preview, full mode is the real run.
 _SEARCH_RESULTS = {"full": 4, "sample": 2}
@@ -358,13 +361,14 @@ def _creative_system() -> str:
         " (a taste test, a giveaway, a day-in-the-life clip) with the"
         " mechanism only as a label is a failure."
         " (9) A DISTINCT SET: when more than one concept is requested, every"
-        " concept must use a DIFFERENT mechanism, a DIFFERENT primary format,"
-        " and a DIFFERENT current trend from the others. Three variations of"
-        " one idea is a failure; the reviewer rejects twins."
+        " concept must use a DIFFERENT mechanism and a DIFFERENT primary"
+        " format from the others; vary the trend angle when the research"
+        " offers more than one. Three variations of one idea is a failure;"
+        " the reviewer rejects twins. Never reuse a mechanism_id listed in"
+        " `avoid_mechanisms`."
         " If `kept_concepts` is non-empty those already passed review: produce"
         " only the requested number of NEW concepts, distinct from them in"
-        " mechanism, format, and trend, fixing what `revision_feedback`"
-        " rejected."
+        " mechanism and format, fixing what `revision_feedback` rejected."
         + _DELIVERABLE_VOICE_RULE
         + "\nSCRAPPY SMALL-BUSINESS PLAYBOOK:\n" + playbook + "\n" + _UNTRUSTED_CONTENT_RULE
     )
@@ -1428,7 +1432,12 @@ def creative_director(state: State) -> dict[str, Any]:
     # On a revision loop the reviewer left the passing (scored) concepts in
     # state — keep them and generate only enough NEW concepts to refill.
     kept = [c for c in state["concepts"] if isinstance(c, dict) and "score" in c]
-    wanted = max(_CONCEPTS_WANTED[mode] - len(kept), 1)
+    shortfall = max(_CONCEPTS_WANTED[mode] - len(kept), 1)
+    # Full-mode revision rounds over-generate one spare candidate (capped at
+    # the target size) so one twin or one weak score cannot leave a slot
+    # unfilled; the reviewer keeps the best and pools the rest.
+    revising = mode == "full" and bool(state.get("review"))
+    wanted = min(shortfall + 1, _CONCEPTS_WANTED[mode]) if revising else shortfall
     business = state["business"]
     goal = str(business.get("goal", ""))
     query = f"{goal} {_brief_query_text(state['brief'])}"[:_RETRIEVAL_QUERY_CHARS]
@@ -1452,6 +1461,11 @@ def creative_director(state: State) -> dict[str, Any]:
         "kept_concepts": [
             {"title": c.get("title"), "mechanism_id": c.get("mechanism_id")} for c in kept
         ],
+        # Hard no-reuse list: a new concept on a kept concept's mechanism is
+        # a twin and will be rejected, so don't let the model waste a slot.
+        "avoid_mechanisms": sorted(
+            {str(c.get("mechanism_id")) for c in kept if c.get("mechanism_id")}
+        ),
         # Titles from every earlier round (kept or rejected), so refills are
         # genuinely new ideas instead of rewordings of rejected ones.
         "avoid_titles": sorted(
@@ -1498,7 +1512,11 @@ _CONCEPT_TOKEN_STOPWORDS = frozenset(
     {"the", "a", "an", "of", "to", "and", "or", "for", "in", "on", "with", "your", "our"}
 )
 # Jaccard overlap at or above these marks two concepts as the same idea.
-_DUPLICATE_OVERLAP = {"title": 0.6, "format": 0.75, "current_trend_used": 0.7}
+# Distinctness means a different MECHANISM and a different FORMAT (plus a
+# genuinely different title). The trend is deliberately NOT here: research
+# often surfaces one dominant trend, and treating same-trend concepts as
+# twins once filtered a real delivery down to a single concept.
+_DUPLICATE_OVERLAP = {"title": 0.6, "format": 0.75}
 
 
 def _concept_tokens(value: Any) -> set[str]:
@@ -1508,9 +1526,9 @@ def _concept_tokens(value: Any) -> set[str]:
 
 def _near_duplicate(candidate: dict[str, Any], chosen: dict[str, Any]) -> str | None:
     """Why `candidate` is a twin of `chosen`, or None when genuinely distinct.
-    Twins ride the same mechanism, or mostly repeat the title, format, or
-    trend (a real report once shipped three riffs on one reactive listicle
-    idea). Checked in code because the prompt rule alone did not hold."""
+    Twins ride the same mechanism or mostly repeat the title or format (a
+    real report once shipped three riffs on one reactive listicle idea).
+    Checked in code because the prompt rule alone did not hold."""
     mech, chosen_mech = str(candidate.get("mechanism_id") or ""), str(
         chosen.get("mechanism_id") or ""
     )
@@ -1535,21 +1553,40 @@ def _twin_rejection(concept: dict[str, Any], kept: list[dict[str, Any]]) -> list
 def _capped_delivery(
     kept: list[dict[str, Any]], pool: list[dict[str, Any]], wanted: int
 ) -> list[dict[str, Any]]:
-    """Passers topped up toward `wanted` with the best-scoring distinct pool
-    candidates that clear _DELIVERY_FLOOR. May return fewer than `wanted`:
-    a shorter set of decent concepts beats padding the report with rejects
-    the user can tell are weak. No labels, no warnings."""
-    final = list(kept)
-    for candidate in sorted(pool, key=lambda c: -float(c.get("score", 0.0))):
+    """Passers topped up to `wanted` with the best-scoring pool candidates
+    that clear _DELIVERY_FLOOR: distinct candidates first, then (sooner than
+    shipping short, which a real user saw as a one-concept report) floor-
+    clearing near-twins. Each relaxation is loud in the logs. The floor
+    itself is never relaxed: no 1.x/10 concept ever pads the set."""
+    final = list(kept[:wanted])
+    floor_cleared = [
+        c
+        for c in sorted(pool, key=lambda c: -float(c.get("score", 0.0)))
+        if float(c.get("score", 0.0)) >= _DELIVERY_FLOOR
+    ]
+
+    def _title_taken(candidate: dict[str, Any]) -> bool:
+        title = str(candidate.get("title", ""))
+        return not title or any(str(f.get("title", "")) == title for f in final)
+
+    # Pass 1: only candidates distinct from everything already chosen.
+    for candidate in floor_cleared:
         if len(final) >= wanted:
             break
-        if float(candidate.get("score", 0.0)) < _DELIVERY_FLOOR:
-            break  # sorted descending: everything after is worse
-        title = str(candidate.get("title", ""))
-        if not title or any(str(f.get("title", "")) == title for f in final):
+        if _title_taken(candidate) or any(_near_duplicate(candidate, f) for f in final):
             continue
-        if any(_near_duplicate(candidate, f) for f in final):
+        final.append(candidate)
+    # Pass 2 (last resort before a short set): allow near-twins that clear
+    # the floor. Exact titles still never repeat.
+    for candidate in floor_cleared:
+        if len(final) >= wanted:
+            break
+        if _title_taken(candidate):
             continue
+        logger.error(
+            "concept delivery relaxed distinctness to avoid a short set: kept '%s'",
+            candidate.get("title", ""),
+        )
         final.append(candidate)
     return final
 
@@ -1640,16 +1677,25 @@ def reviewer(state: State) -> dict[str, Any]:
             pool.append({**concept, "score": score, "rubric_scores": scores})
         else:
             kept.append({**concept, "score": score, "rubric_scores": scores})
+    # Revision rounds over-generate a spare, so more than the target can
+    # pass: keep the best `wanted` (they are already pairwise distinct) and
+    # pool the overflow as ready floor-clearing backups.
+    wanted = _CONCEPTS_WANTED[state["mode"]]
+    if len(kept) > wanted:
+        kept.sort(key=lambda c: -float(c.get("score", 0.0)))
+        pool.extend(kept[wanted:])
+        kept = kept[:wanted]
     if not rejected:
         return {
             "concepts": kept,
+            "concept_pool": pool,
             "review": {"verdict": "strong", "notes": "all concepts passed", "rejected": []},
         }
     if state["step_count"] > _MAX_REVIEW_LOOPS:
         # Loop exhausted short of the target: deliver the passers plus the
         # best-scoring remaining candidates, unlabeled. Regeneration had its
         # chances (rule 7 caps them); the delivery is always a full set.
-        final = _capped_delivery(kept, pool, _CONCEPTS_WANTED[state["mode"]])
+        final = _capped_delivery(kept, pool, wanted)
         logger.warning(
             "review loop capped with %d passer(s); topping up to %d from %d candidates",
             len(kept),
@@ -1695,6 +1741,14 @@ def finalize(state: State) -> dict[str, Any]:
         )
         if concepts:
             logger.warning("finalize floor engaged: recovered %d pooled concept(s)", len(concepts))
+    if state["mode"] == "full" and len(concepts) < _CONCEPTS_WANTED["full"]:
+        # Absolute last resort actually happened: every bounded retry and the
+        # relaxed delivery still could not fill the set. Never silent.
+        logger.error(
+            "SHORT DELIVERY: finalizing with %d of %d concepts after all retries",
+            len(concepts),
+            _CONCEPTS_WANTED["full"],
+        )
     result: dict[str, Any] = {
         "plan": state["plan"],
         "brief": state["brief"],
