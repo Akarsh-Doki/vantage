@@ -2,7 +2,7 @@
 
 Vantage is an AI marketing team for small businesses: a LangGraph multi-agent pipeline that researches a business and its competitors on the live web, then produces a cited marketing strategy and three distinct creative concepts.
 
-**[Watch the demo](PASTE_LOOM_URL_HERE)** · **[Open the app]([https://vantage-xi-seven.vercel.app])**
+**[Watch the demo](PASTE_LOOM_URL_HERE)** · **[Open the app](https://vantage-xi-seven.vercel.app)**
 
 <!-- Replace PASTE_LOOM_URL_HERE with the Loom link and PASTE_DEPLOYED_DOMAIN_HERE with the deployed frontend domain. -->
 
