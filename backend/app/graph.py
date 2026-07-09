@@ -1621,6 +1621,10 @@ def reviewer(state: State) -> dict[str, Any]:
     concepts = state["concepts"]
     if not concepts:
         return _review_empty_batch(state)
+    # Revision rounds over-generate a spare, so the working batch can exceed
+    # the promised count. EVERY exit from this node must deliver at most
+    # `wanted` (a real report once shipped 4 through the error path below).
+    wanted = _CONCEPTS_WANTED[state["mode"]]
     try:
         text = call_model(
             SONNET,
@@ -1633,13 +1637,21 @@ def reviewer(state: State) -> dict[str, Any]:
         ).text
     except ModelCallError:
         # The review is a quality gate, not a data source — degrade, don't kill
-        # the run (rule 6). An unreviewable run still reaches the human gate.
+        # the run (rule 6). An unreviewable run still reaches the human gate,
+        # but never with more than the promised count (kept passers lead the
+        # state order, so they survive the cut).
         logger.warning("reviewer call failed; passing concepts through unreviewed")
-        return {"review": {"verdict": "error", "notes": "automated review unavailable"}}
+        return {
+            "concepts": concepts[:wanted],
+            "review": {"verdict": "error", "notes": "automated review unavailable"},
+        }
     evaluations = _parse_evaluations(text)
     if evaluations is None:
         logger.warning("reviewer output unusable; passing concepts through unreviewed")
-        return {"review": {"verdict": "error", "notes": "automated review unparseable"}}
+        return {
+            "concepts": concepts[:wanted],
+            "review": {"verdict": "error", "notes": "automated review unparseable"},
+        }
 
     # Pair by position. A truncated review may score fewer concepts than exist;
     # any concept without an evaluation is rejected as unscored so it regenerates
@@ -1677,10 +1689,8 @@ def reviewer(state: State) -> dict[str, Any]:
             pool.append({**concept, "score": score, "rubric_scores": scores})
         else:
             kept.append({**concept, "score": score, "rubric_scores": scores})
-    # Revision rounds over-generate a spare, so more than the target can
-    # pass: keep the best `wanted` (they are already pairwise distinct) and
-    # pool the overflow as ready floor-clearing backups.
-    wanted = _CONCEPTS_WANTED[state["mode"]]
+    # More passers than the target: keep the best `wanted` (they are already
+    # pairwise distinct) and pool the overflow as ready floor-clearing backups.
     if len(kept) > wanted:
         kept.sort(key=lambda c: -float(c.get("score", 0.0)))
         pool.extend(kept[wanted:])
@@ -1741,6 +1751,11 @@ def finalize(state: State) -> dict[str, Any]:
         )
         if concepts:
             logger.warning("finalize floor engaged: recovered %d pooled concept(s)", len(concepts))
+    # The product promises an exact count (3 full, 1 sample). Every loop exit
+    # caps itself, but this is the deliverable's last line of defense: real
+    # runs have shipped 4 (over-generated batch through the review-error
+    # path) and 1 (over-filtered delivery). Kept passers lead the order.
+    concepts = list(concepts)[: _CONCEPTS_WANTED[state["mode"]]]
     if state["mode"] == "full" and len(concepts) < _CONCEPTS_WANTED["full"]:
         # Absolute last resort actually happened: every bounded retry and the
         # relaxed delivery still could not fill the set. Never silent.

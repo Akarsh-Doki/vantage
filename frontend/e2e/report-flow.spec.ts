@@ -33,7 +33,7 @@ test("new report runs through progress, review, and the finished report", async 
   await expect(page.getByText("Coffee Retail Trade Study").first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Export PDF" }).first()).toBeVisible()
   // The AI disclosure sits under the header on every rendered report.
-  await expect(page.getByText(/AI-generated report/)).toBeVisible()
+  await expect(page.getByText("AI-generated. Review before acting on it.")).toBeVisible()
   // The quality gate's internals never reach the customer: no warning labels,
   // and no raw rubric numbers presented as a grade.
   await expect(page.getByText(/below the quality bar/i)).toHaveCount(0)

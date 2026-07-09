@@ -78,7 +78,7 @@ export function ReportView({
           print). Keep the word "AI" in the text. */}
       <div className="border-b border-hairline">
         <p className="mx-auto max-w-[760px] px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-          AI-generated report. Suggestions, not professional advice. Verify details before acting.
+          AI-generated. Review before acting on it.
         </p>
       </div>
 

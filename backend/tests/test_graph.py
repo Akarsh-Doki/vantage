@@ -1484,3 +1484,46 @@ def test_reviewer_trims_overflow_passers_to_target_and_pools_the_spare(
     assert "Concept 4" not in titles
     assert any(c["title"] == "Concept 4" for c in out["concept_pool"])
     assert all(c["score"] >= graph._MIN_SCORE for c in out["concepts"])
+
+
+def test_review_error_path_never_ships_more_than_the_promised_count(
+    pipeline: PipelineCalls,
+) -> None:
+    """The exact production leak that shipped FOUR concepts: a revision round
+    holds one kept passer plus shortfall+1 fresh candidates (4 total), then
+    the reviewer output is unparseable. The unreviewed pass-through must cap
+    at the promised count, with the scored passer surviving the cut."""
+    state = _initial("full")
+    state["research"] = [
+        {"text": "finding", "source_url": "https://rival-a.example/pricing", "title": "t"}
+    ]
+    kept_passer = _concept("Blind Can Test", mechanism_id="mech_kept") | {
+        "score": 7.2,
+        "rubric_scores": {"ownable": 8},
+    }
+    fresh = [
+        _concept("Fresh A", mechanism_id="mech_a", format="collab drop"),
+        _concept("Fresh B", mechanism_id="mech_b", format="live ledger"),
+        _concept("Fresh C", mechanism_id="mech_c", format="tasting menu"),
+    ]
+    state["concepts"] = [kept_passer, *fresh]
+    pipeline.reviewer_responses.append("not json at all")
+
+    out = graph.reviewer(state)
+
+    assert out["review"]["verdict"] == "error"
+    assert len(out["concepts"]) == graph._CONCEPTS_WANTED["full"]
+    assert out["concepts"][0]["title"] == "Blind Can Test"  # kept passer leads
+
+
+def test_finalize_pins_the_deliverable_to_the_exact_promised_count() -> None:
+    state = _initial("full")
+    state["concepts"] = [
+        _concept(f"Concept {n}", mechanism_id=f"mech_{n}") | {"score": 8.0, "rubric_scores": {}}
+        for n in range(1, 5)  # four concepts somehow reached finalize
+    ]
+
+    result = graph.finalize(state)["result"]
+
+    assert len(result["concepts"]) == graph._CONCEPTS_WANTED["full"]
+    assert [c["title"] for c in result["concepts"]] == ["Concept 1", "Concept 2", "Concept 3"]
