@@ -7,14 +7,18 @@ import { ReportView } from "@/components/report/report-view"
 export const metadata: Metadata = {
   title: "Sample marketing report · Vantage",
   description:
-    "A full sample of the Vantage deliverable: cited research, competitive mapping, positioning, strategy, and scored creative concepts.",
+    "A full sample of the Vantage deliverable: cited research, positioning, strategy, and three distinct creative concepts.",
 }
 
 /*
- * The entire page renders from this one object. Real reports will hydrate the
+ * The entire page renders from this one object. Real reports hydrate the
  * same ReportData shape from the backend, so swapping sample for live data is
- * a data change, not a redesign. Chart values throughout are
- * illustrative sample values, real reports supply these from the backend.
+ * a data change, not a redesign. All values are illustrative fiction.
+ *
+ * Deliberately prose-first, matching what real runs produce: the cites-gated
+ * charts (positioning scatter, segment shares, funnel) are rare in real
+ * reports, so this demo leads with the read, the positioning, the strategy,
+ * and the concepts instead of leaning on charts (Task 7 decision).
  */
 const sampleReport: ReportData = {
   meta: {
@@ -45,38 +49,29 @@ const sampleReport: ReportData = {
     ],
     // illustrative sample values, real reports supply these from the backend
     tiles: [
-      { label: "Positioning gap", value: "Fresh × mid-premium", detail: "The unclaimed quadrant on the competitive map" },
+      { label: "Positioning gap", value: "Fresh × mid-premium", detail: "Fresh enough to taste different, priced for a weekly habit" },
       { label: "Priority channel", value: "Short-form video", detail: "Where 35% of the recommended effort goes" },
       { label: "Primary segment", value: "Ritual brewers · 42%", detail: "Own a grinder, brew daily, skeptical of premium fluff" },
-      { label: "Q1 objective", value: "40% trial→paid", detail: "Against a category norm of roughly a third" },
+      { label: "Q1 objective", value: "40% trial→paid", detail: "The first-month onboarding sequence is the lever" },
     ],
   },
 
   landscape: {
-    lede: "Five competitors on the two axes buyers care about: what they pay, and how fresh the coffee actually arrives.",
-    xLabel: "Price: value to premium",
-    yLabel: "Freshness & craft",
-    // illustrative sample values, real reports supply these from the backend
-    points: [
-      { name: "Ridgeline", x: 5.8, y: 8.8, isYou: true },
-      { name: "Copper Kettle", x: 8.6, y: 7.2 },
-      { name: "Harbor Light", x: 7.2, y: 6.1 },
-      { name: "Roast Exchange", x: 5.2, y: 5.0 },
-      { name: "Crate & Pour", x: 6.4, y: 3.4 },
-      { name: "Daily Drum", x: 2.4, y: 2.2 },
-    ],
-    highlight: { x1: 4.2, x2: 7.6, y1: 7.2, y2: 10, title: "Open territory.", note: "Nobody owns this." },
+    // No positioning scatter here on purpose: real reports only earn that
+    // chart when the research supplies cited placements, which is rare. The
+    // demo shows what a typical real report shows: the read and the table.
+    lede: "Five competitors, read on the two things buyers actually weigh: what they pay, and how fresh the coffee arrives.",
     analysis: [
       {
-        text: "The map tells one story. Price and freshness are decoupled in this category. Copper Kettle charges a real premium and earns some of it on craft, but roasts nationally and averages seven to ten days from roaster to doorstep. Daily Drum wins on price and loses everywhere else. Nobody credibly holds the top middle: fresh enough to taste different, priced where a weekly habit can live.",
+        text: "One pattern stands out. Price and freshness are decoupled in this category. Copper Kettle charges a real premium and earns some of it on craft, but roasts nationally and averages seven to ten days from roaster to doorstep. Daily Drum wins on price and loses everywhere else. Nobody credibly owns the ground between them: fresh enough to taste different, priced where a weekly habit can live.",
         cites: [6],
       },
       {
-        text: "That quadrant is not empty by accident. National players cannot roast to order without rebuilding their supply chains, and marketplaces cannot control freshness they do not produce. A roaster who ships within 48 hours of roast can claim it with proof. Buyers who see a roast date treat it as a quality signal before they taste anything.",
+        text: "That gap is not empty by accident. National players cannot roast to order without rebuilding their supply chains, and marketplaces cannot control freshness they do not produce. A roaster who ships within 48 hours of roast can claim it with proof. Buyers who see a roast date treat it as a quality signal before they taste anything.",
         cites: [7],
       },
       {
-        text: "One risk worth naming. Harbor Light roasts well and sits closest to the open territory, so they could copy this move locally. The defense is speed: make the roast date Ridgeline's signature before anyone else prints one. Subscribers who stay past month three stay for reliability.",
+        text: "One risk worth naming. Harbor Light roasts well and sits closest to that gap, so they could copy this move locally. The defense is speed: make the roast date Ridgeline's signature before anyone else prints one. Subscribers who stay past month three stay for reliability.",
         cites: [2],
       },
     ],
@@ -194,7 +189,6 @@ const sampleReport: ReportData = {
       title: "The Roast Date Receipt",
       mechanism: "Distinctive asset proof",
       mechanismId: "distinctive_asset_proof",
-      score: "8.7 / 10",
       idea: "Every bag ships with the exact roast date printed large, and the brand builds content around the gap between roast and delivery. Freshness becomes a number people can check rather than a claim they have to trust.",
       execution:
         "Launch post: a split-screen showing a supermarket bag with no date beside a Ridgeline bag reading “Roasted 2 days ago.” Caption: “If they won't print the date, ask why.”",
@@ -212,7 +206,6 @@ const sampleReport: ReportData = {
       title: "Brew With Me, Weekly",
       mechanism: "Useful utility",
       mechanismId: "useful_utility",
-      score: "8.4 / 10",
       idea: "A recurring same-time, same-format short video where the founder brews the current week's roast in real time, teaching one small technique per episode and tying it to the delivery cadence.",
       execution:
         "Episode 1: a 45-second V60 pour timed to a 3-minute morning, ending with “this bag lands on your doorstep Friday.” Pin it and repost to email.",
@@ -223,7 +216,6 @@ const sampleReport: ReportData = {
       title: "The Cancellation Confession",
       mechanism: "Turn negativity into content",
       mechanismId: "turn_negativity_into_content",
-      score: "8.1 / 10",
       idea: "Instead of hiding the cancel button, celebrate it. Content openly invites people to pause anytime, which lowers the commitment fear that blocks the first trial signup.",
       execution:
         "Post: a screen recording of the one-tap pause flow with the caption “Skip a week whenever. We'd rather you come back than feel trapped.”",
@@ -234,10 +226,10 @@ const sampleReport: ReportData = {
 
   // illustrative sample values, real reports supply these from the backend
   kpis: [
-    { metric: "Trial → paid conversion", target: "≥ 40%", benchmark: "Category benchmark sits near a third; onboarding is the lever" },
+    { metric: "Trial → paid conversion", target: "≥ 40%", benchmark: "Onboarding is the lever; the first month decides this number" },
     { metric: "First-3-delivery completion", target: "≥ 62%", benchmark: "The churn cliff is bag four. This is the number the strategy defends" },
     { metric: "6-month retention", target: "≥ 78%", benchmark: "Of subscribers who clear month one. Reliability drives it" },
-    { metric: "Reel → site click-through", target: "≥ 2.5%", benchmark: "Demonstration content against a 1 to 1.5% food and beverage norm" },
+    { metric: "Reel → site click-through", target: "≥ 2.5%", benchmark: "Demonstration content should out-click brand copy; measure against your own paid baseline" },
     { metric: "Blended CAC", target: "≤ $28", benchmark: "Payback inside two deliveries at current contribution margin" },
   ],
 
