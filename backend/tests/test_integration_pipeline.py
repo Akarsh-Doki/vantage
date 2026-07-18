@@ -234,7 +234,7 @@ def test_sample_runs_real_graph_and_is_reopenable(
     final = client.get(f"/reports/{run_id}", headers=_auth(USER_A)).json()
     assert final["status"] == "completed"
     assert final["kind"] == "sample"
-    # Sample stays the reduced deliverable: no full-mode structured blocks.
+    # Sample stays the reduced deliverable, with no full-mode structured blocks.
     assert "tiles" not in final["report"]["brief"]
     assert len(final["report"]["creative"]) == 1
     assert run_id in store.reports

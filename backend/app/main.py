@@ -20,7 +20,7 @@ def create_app() -> FastAPI:
     configure_logging()  # redact secrets from all logs before anything runs
     app = FastAPI(title="Vantage API")
 
-    # CORS locked to the exact frontend origin(s) — no wildcards, and only the
+    # CORS locked to the exact frontend origin(s), no wildcards, and only the
     # methods/headers the frontend actually uses.
     app.add_middleware(
         CORSMiddleware,
@@ -31,8 +31,8 @@ def create_app() -> FastAPI:
     )
     add_security_headers(app)
 
-    # Rate limiting (slowapi): the decorators live on the routes; the app just
-    # needs the limiter registered and a clear 429 handler.
+    # Rate limiting (slowapi): the decorators live on the routes, so the app
+    # just needs the limiter registered and a clear 429 handler.
     app.state.limiter = limiter
 
     @app.exception_handler(RateLimitExceeded)
@@ -51,8 +51,8 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
-        # Full detail goes to the (redacted) logs; clients get a generic
-        # message — never a stack trace, never internals (rule 6).
+        # Full detail goes to the (redacted) logs. Clients get a generic
+        # message, never a stack trace, never internals (rule 6).
         logger.exception("unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 

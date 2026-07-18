@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 
-/** The mocked FastAPI origin; every call to it is fulfilled by page.route. */
+/** The mocked FastAPI origin. Every call to it is fulfilled by page.route. */
 export const API = "http://127.0.0.1:8788"
 
 export const RUN_ID = "22222222-2222-4222-8222-222222222222"
@@ -74,7 +74,7 @@ export const DONE = {
 }
 
 /** Wire the whole backend API for one test. Poll responses advance from
- * `phases` one GET at a time (the last repeats); approve flips to DONE. */
+ * `phases` one GET at a time (the last repeats). Approve flips to DONE. */
 export async function mockBackend(
   page: Page,
   phases: Array<typeof RESEARCHING | typeof AWAITING | typeof DONE>,

@@ -1,7 +1,7 @@
-"""Tests for the eval harness scoring — pure functions, zero cost.
+"""Tests for the eval harness scoring. Pure functions, zero cost.
 
 These verify the *measurement* logic (groundedness math, relevance parsing).
-The eval harness itself spends money on a real run; its offline path is
+The eval harness itself spends money on a real run. Its offline path is
 exercised via `python -m evals.run_eval --dry-run`, not here.
 """
 
@@ -59,7 +59,7 @@ def test_parse_relevance_prefers_explicit_score() -> None:
 
 
 def test_parse_relevance_strips_code_fences_and_prose() -> None:
-    # A fenced reply and one buried in prose both parse — the bug was these
+    # A fenced reply and one buried in prose both parse. The bug was these
     # failing and flooring to 1.
     assert parse_relevance_score("```\nSCORE: 4\n```") == 4
     assert (
@@ -78,13 +78,13 @@ def test_parse_relevance_clamps_to_1_5() -> None:
 
 
 def test_parse_relevance_none_when_unparseable() -> None:
-    # No 1-5 anywhere → None (unknown), NOT a silent floor of 1.
+    # No 1-5 anywhere means None (unknown), NOT a silent floor of 1.
     assert parse_relevance_score("no numeric rating here") is None
     assert parse_relevance_score("") is None
 
 
 def test_estimated_cost_is_mode_aware() -> None:
-    # Sample ~3c/item; full ~30c/item — the confirmation number stays honest.
+    # Sample ~3c/item, full ~30c/item. The confirmation number stays honest.
     assert _estimated_cost_cents(10, "sample") == 30
     assert _estimated_cost_cents(10, "full") == 450
     assert _estimated_cost_cents(4, "sample") < _estimated_cost_cents(4, "full")

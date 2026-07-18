@@ -1,7 +1,7 @@
 // Minimal Supabase auth emulator for E2E runs. Serves just the GoTrue
 // endpoints the app touches, so login works end to end (browser client AND
 // the Next middleware's server-side getUser) with zero real network.
-// Started by playwright.config.ts as a webServer; port 54321.
+// Started by playwright.config.ts as a webServer on port 54321.
 import { createServer } from "node:http"
 
 const PORT = 54321
@@ -15,7 +15,7 @@ const USER = {
   created_at: "2026-01-01T00:00:00Z",
 }
 
-// Unsigned but JWT-shaped: supabase-js decodes the payload, never verifies
+// Unsigned but JWT-shaped. supabase-js decodes the payload, never verifies
 // client-side. exp is far in the future so no refresh is attempted mid-test.
 const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url")
 const ACCESS_TOKEN = `${b64({ alg: "none", typ: "JWT" })}.${b64({

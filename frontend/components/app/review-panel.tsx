@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
  * Shown while the run is awaiting_review. The draft itself stays inside the
  * paused pipeline (the API returns the deliverable only once completed), so
  * this panel explains what was produced and gates the final generation on the
- * user's approval. Approve resumes the run; notes send it back for revision.
+ * user's approval. Approve resumes the run. Notes send it back for revision.
  */
 
 const PRODUCED = [

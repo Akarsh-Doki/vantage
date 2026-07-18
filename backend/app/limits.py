@@ -1,15 +1,15 @@
 """Abuse and cost protection.
 
 Three layers, each doing what it is best at:
-- slowapi rate limits (in-memory, per-process) absorb bursts — per-IP and
-  per-user, strictest on the run-starting endpoints;
-- DB-backed daily counts are the durable spend caps that survive restarts:
-  a GLOBAL free-sample cap protects account-level Anthropic spend, and a
-  per-user paid daily run limit bounds a single customer;
+- slowapi rate limits (in-memory, per-process) absorb bursts, per-IP and
+  per-user, strictest on the run-starting endpoints.
+- DB-backed daily counts are the durable spend caps that survive restarts.
+  A GLOBAL free-sample cap protects account-level Anthropic spend, and a
+  per-user paid daily run limit bounds a single customer.
 - a global asyncio semaphore bounds concurrent graph runs so a spike can't
   spawn unbounded model calls.
 
-Policy decisions live in pure functions (easy to unit-test); all I/O
+Policy decisions live in pure functions (easy to unit-test). All I/O
 (counts, profile reads) stays in the routers.
 """
 
@@ -33,12 +33,12 @@ T = TypeVar("T")
 # --- rate limiting -------------------------------------------------------------
 def ip_key(request: Request) -> str:
     """Rate-limit bucket keyed by client IP (the parameter MUST be named
-    `request` — slowapi only passes it when the key func declares it)."""
+    `request`, slowapi only passes it when the key func declares it)."""
     return f"ip:{get_remote_address(request)}"
 
 
 def user_key(request: Request) -> str:
-    """Rate-limit bucket keyed by the authenticated user; falls back to IP so
+    """Rate-limit bucket keyed by the authenticated user. Falls back to IP so
     unauthenticated bursts are still bounded. Never raises."""
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
@@ -51,7 +51,7 @@ def user_key(request: Request) -> str:
     return ip_key(request)
 
 
-# Decorator-based limiting: no middleware needed, but create_app() must set
+# Decorator-based limiting needs no middleware, but create_app() must set
 # app.state.limiter and register the RateLimitExceeded handler.
 limiter = Limiter(key_func=ip_key)
 
@@ -63,8 +63,8 @@ _semaphore_loop: asyncio.AbstractEventLoop | None = None
 
 def _slot() -> asyncio.Semaphore:
     # Bind lazily to the running loop, and rebind if the loop changed (uvicorn
-    # runs one loop; tests may create a fresh loop per case).
-    global _semaphore, _semaphore_loop  # noqa: PLW0603 — lazy per-loop singleton
+    # runs one loop, tests may create a fresh loop per case).
+    global _semaphore, _semaphore_loop  # noqa: PLW0603 (lazy per-loop singleton)
     loop = asyncio.get_running_loop()
     if _semaphore is None or _semaphore_loop is not loop:
         _semaphore = asyncio.Semaphore(config.graph_concurrency())
@@ -74,7 +74,7 @@ def _slot() -> asyncio.Semaphore:
 
 async def run_with_slot(fn: Callable[..., T], *args: Any) -> T:
     """Run a blocking graph function in a worker thread, but only while a
-    concurrency slot is held — never more than GRAPH_CONCURRENCY at once."""
+    concurrency slot is held, never more than GRAPH_CONCURRENCY at once."""
     async with _slot():
         return await asyncio.to_thread(fn, *args)
 
@@ -82,7 +82,7 @@ async def run_with_slot(fn: Callable[..., T], *args: Any) -> T:
 BackgroundRunner = Callable[..., Awaitable[None]]
 
 
-# --- durable spend-cap policy (pure; callers supply the counts) ---------------
+# --- durable spend-cap policy (pure, callers supply the counts) ---------------
 def sample_capacity_available(samples_today: int) -> bool:
     """False once today's global free-sample count reaches the cap."""
     return samples_today < config.daily_sample_cap()
@@ -90,10 +90,10 @@ def sample_capacity_available(samples_today: int) -> bool:
 
 def full_run_decision(profile: dict[str, Any] | None, runs_today: int) -> tuple[str, str]:
     """(verdict, reason) for starting a full report. Verdicts:
-    "admin"   unlimited allowance, nothing is decremented;
-    "credit"  the caller must atomically spend one full_report_credit;
-    "limited" over the daily runaway cap (applies to everyone, admins too);
-    "denied"  no allowance: visible button, server-side wall, zero cost."""
+    "admin"   unlimited allowance, nothing is decremented.
+    "credit"  the caller must atomically spend one full_report_credit.
+    "limited" over the daily runaway cap (applies to everyone, admins too).
+    "denied"  no allowance, so a visible button, server-side wall, zero cost."""
     if runs_today >= config.paid_daily_run_limit():
         return "limited", "Daily run limit reached; try again tomorrow."
     data = profile or {}

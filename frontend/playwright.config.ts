@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test"
 
 /*
  * E2E runs against a dedicated dev server on port 3100 (so a developer's own
- * `next dev` on 3000 is untouched) with ALL network mocked: Supabase auth is
+ * `next dev` on 3000 is untouched) with ALL network mocked. Supabase auth is
  * a tiny local emulator (e2e/mocks/supabase-mock.mjs, also used by the Next
  * middleware server-side) and every backend API call is intercepted per test
  * with page.route. Zero real Supabase, zero LLM/Tavily, zero spend.
@@ -26,7 +26,7 @@ export default defineConfig({
       timeout: 15_000,
     },
     {
-      // Production build on purpose: dev-mode HMR races hydration under the
+      // Production build on purpose. Dev-mode HMR races hydration under the
       // test browser (a click before hydration submits forms natively).
       // NEXT_PUBLIC_* values are baked at build time, so they live here.
       command: "npm run build && npm run start -- -p 3100",

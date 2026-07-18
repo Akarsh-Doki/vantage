@@ -68,7 +68,7 @@ export default function DashboardPage() {
     setRenaming(true)
     setError(null)
     const previous = reports
-    // Optimistic: show the new name immediately, revert if the save fails.
+    // Optimistic update. Show the new name immediately, revert if the save fails.
     setReports((prev) => (prev ?? []).map((r) => (r.run_id === id ? { ...r, name } : r)))
     setEditingId(null)
     try {

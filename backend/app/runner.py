@@ -1,13 +1,13 @@
-"""Run execution — a standalone module (not inline route code) so it can move
+"""Run execution as a standalone module (not inline route code) so it can move
 to a task queue later without touching the routes.
 
-Lifecycle (status stays within the report_runs CHECK enum; the finer phases
+Lifecycle (status stays within the report_runs CHECK enum, the finer phases
 ride in current_step): queued -> running (research:* .. generating:*) ->
 awaiting_review -> running (finalizing) -> completed | failed.
 
 The report_runs id doubles as the checkpointer thread_id, so every run is
 durable and resumable. If the graph raises, the run is marked failed with a
-short human-readable error — never left hanging (rule 6).
+short human-readable error, never left hanging (rule 6).
 """
 
 import logging
@@ -37,8 +37,8 @@ _NODE_STEPS = {
 }
 
 # Cents per million tokens (input, output) by model-id prefix. Approximate,
-# for the quota/abuse ledger — reconcile billing against Anthropic's console.
-# "tavily" is the search tool, priced at $0 on the free tier — an explicit
+# for the quota/abuse ledger. Reconcile billing against Anthropic's console.
+# "tavily" is the search tool, priced at $0 on the free tier. An explicit
 # zero so search calls record an intentional no-cost rather than tripping the
 # "no price configured" warning on every call.
 _PRICES_CENTS_PER_MTOK: dict[str, tuple[int, int]] = {
@@ -48,12 +48,10 @@ _PRICES_CENTS_PER_MTOK: dict[str, tuple[int, int]] = {
     "tavily": (0, 0),
 }
 
-
 @lru_cache(maxsize=1)
 def _graph() -> Any:
-    # Built once per process; connects the Postgres checkpointer lazily.
+    # Built once per process. Connects the Postgres checkpointer lazily.
     return build_graph()
-
 
 def _cost_cents(model: str | None, tokens_in: int, tokens_out: int) -> float:
     if not model:
@@ -89,7 +87,6 @@ class _RunMeter:
             "cost_cents": round(self.cost_cents),
         }
 
-
 def _initial_state(business: dict[str, Any], mode: str) -> dict[str, Any]:
     return {
         "mode": mode,
@@ -106,15 +103,12 @@ def _initial_state(business: dict[str, Any], mode: str) -> dict[str, Any]:
         "cost_cents": 0,
     }
 
-
 def _public_error(exc: Exception) -> str:
-    # Human-readable and short; never a traceback, never internals.
+    # Human-readable and short, never a traceback, never internals.
     return f"{type(exc).__name__}: {exc}"[:500]
-
 
 def _config(thread_id: str) -> dict[str, Any]:
     return {"configurable": {"thread_id": thread_id}}
-
 
 def execute_run(
     run_id: str,
@@ -188,8 +182,8 @@ def execute_run(
 
 def _refund_full_report_credit(user_id: str) -> None:
     """A failed accepted run gives its credit back. Admins never spent one
-    (the gate lets them through without decrementing), so they are skipped;
-    everyone else reached the runner only by spending exactly one."""
+    (the gate lets them through without decrementing), so they are skipped.
+    Everyone else reached the runner only by spending exactly one."""
     profile = db.get_profile(user_id)
     if not (profile or {}).get("is_admin"):
         db.grant_full_report_credits(user_id, 1)
@@ -232,7 +226,7 @@ def resume_run(
             },
         )
         if kind == "full":
-            # The credit was spent when the run was accepted; a failure
+            # The credit was spent when the run was accepted. A failure
             # during finalization refunds it the same as any other failure.
             _refund_full_report_credit(user_id)
 

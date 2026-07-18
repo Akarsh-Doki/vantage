@@ -23,7 +23,7 @@ export function FunnelDiagram({ stages, dropLabel }: { stages: FunnelStage[]; dr
   const reduced = useReducedMotion()
   const shown = reduced || inView
 
-  // The annotated drop is computed from the data: largest absolute fall.
+  // The annotated drop is the largest absolute fall in the data.
   let biggestDropIndex = -1
   let biggestDrop = 0
   stages.forEach((stage, i) => {

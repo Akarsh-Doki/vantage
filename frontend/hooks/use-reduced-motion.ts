@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-/** Tracks prefers-reduced-motion; true means show final states instantly. */
+/** Tracks prefers-reduced-motion. True means show final states instantly. */
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false)
 

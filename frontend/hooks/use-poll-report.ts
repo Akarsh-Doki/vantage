@@ -6,7 +6,7 @@ import { deriveReportStatus, type Report, type ReportStatus } from "@/lib/types"
 
 const POLL_INTERVAL_MS = 2000
 
-/** Auth/ownership failures won't heal by retrying; stop the poll on these. */
+/** Auth/ownership failures won't heal by retrying, so stop the poll on these. */
 const TERMINAL_HTTP_STATUSES = new Set([401, 403, 404])
 
 export interface PollReportResult {
@@ -25,7 +25,7 @@ export interface PollReportResult {
 /**
  * Poll GET /reports/{id} every 2s, walking the run through
  * queued -> researching -> awaiting_review -> generating -> done | failed.
- * Polling stops at the terminal states and on 401/403/404; transient
+ * Polling stops at the terminal states and on 401/403/404. Transient
  * network/5xx errors are surfaced but keep retrying. Cleans up on unmount.
  */
 export function usePollReport(id: string | undefined): PollReportResult {
@@ -37,7 +37,7 @@ export function usePollReport(id: string | undefined): PollReportResult {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelled = useRef(false)
   // Holds the latest `poll` so the recursive setTimeout never has to reference
-  // `poll` from inside its own definition; wired up in the effect below.
+  // `poll` from inside its own definition. Wired up in the effect below.
   const scheduleNext = useRef<() => void>(() => undefined)
 
   // Every state update lives in this async worker (never in the effect body) so

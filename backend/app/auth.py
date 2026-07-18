@@ -1,6 +1,6 @@
 """Supabase JWT verification (security-critical).
 
-The user's identity comes ONLY from the verified token's `sub` claim — never
+The user's identity comes ONLY from the verified token's `sub` claim, never
 from request bodies or query params. Signature and expiry are validated with
 SUPABASE_JWT_SECRET (HS256) or, when SUPABASE_JWKS_URL is set, the project's
 asymmetric keys. Missing/invalid/expired tokens are rejected with 401.
@@ -36,11 +36,10 @@ def decode_token(token: str) -> dict[str, Any]:
         claims = jwt.decode(token, secret, algorithms=["HS256"], audience=_AUDIENCE)
     return dict(claims)
 
-
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> str:
-    """The verified user id (JWT `sub`); raises 401 otherwise."""
+    """The verified user id (JWT `sub`). Raises 401 otherwise."""
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Not authenticated",
@@ -56,6 +55,5 @@ def get_current_user(
     if not isinstance(sub, str) or not sub:
         raise unauthorized
     return sub
-
 
 UserId = Annotated[str, Depends(get_current_user)]

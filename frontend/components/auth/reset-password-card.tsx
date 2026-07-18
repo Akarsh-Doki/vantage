@@ -18,7 +18,7 @@ type Phase = "checking" | "ready" | "invalid" | "done"
 /*
  * The page the recovery email lands on. The link goes through /auth/callback,
  * which exchanges the recovery code for a cookie session, so by the time this
- * mounts there is normally a session already; we also listen for the
+ * mounts there is normally a session already. We also listen for the
  * PASSWORD_RECOVERY auth event (covers clients that deliver the token in the
  * URL) and read error params so expired links get a clean dead end, never a
  * broken form.

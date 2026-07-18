@@ -36,7 +36,7 @@ type GlassSurfaceProps = {
   blur?: number
   /** 0..1 background tint (cream) laid over the refraction for text contrast. */
   tint?: number
-  /** Backdrop saturation multiplier; >1 makes the greens sing through. */
+  /** Backdrop saturation multiplier. >1 makes the greens sing through. */
   saturation?: number
   /** Hairline border + inset ring. Turn off when the caller frames itself (nav). */
   bordered?: boolean
@@ -60,7 +60,7 @@ function supportsBackdropSvgFilters(): boolean {
 
 /**
  * The displacement map, generated at the surface's real pixel size. 50% gray
- * is "no displacement": the blurred neutral rect keeps the center optically
+ * is "no displacement", so the blurred neutral rect keeps the center optically
  * flat, and the red (x) / blue (y) gradients only survive at the rim, which
  * is what makes the edge refract like a lens instead of smearing the text.
  */
@@ -184,7 +184,7 @@ export function GlassSurface({
                 result="map"
                 preserveAspectRatio="none"
               />
-              {/* one displacement per channel; the offsets are the chromatic fringe */}
+              {/* one displacement per channel, the offsets are the chromatic fringe */}
               <feDisplacementMap in="SourceGraphic" in2="map" scale={displace + aberration} xChannelSelector="R" yChannelSelector="B" result="dispR" />
               <feColorMatrix in="dispR" type="matrix" values={CHANNEL_MATRIX.r} result="chanR" />
               <feDisplacementMap in="SourceGraphic" in2="map" scale={displace} xChannelSelector="R" yChannelSelector="B" result="dispG" />

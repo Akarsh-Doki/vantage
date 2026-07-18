@@ -4,7 +4,7 @@ import { AgentByline, type AgentId } from "./agent-byline"
  * The report's section-header pattern: mono eyebrow, serif title, optional
  * lede, then one structural accent applied everywhere, a baseline hairline
  * rule with a short forest tick, with the contributor credential seated on
- * the rule's right end. Quiet craft; the content below stays the product.
+ * the rule's right end. Quiet craft, the content below stays the product.
  */
 
 /** The shared baseline rule: full hairline with a short forest tick at left. */

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
  * In-app confirmation modal for destructive actions, replacing the browser's
  * native confirm(). Centered card on a subtle backdrop, serif title, sans
  * body, outline cancel, destructive confirm. Closes on cancel, backdrop
- * click, and Escape; focus lands on Cancel so Enter never destroys by
+ * click, and Escape. Focus lands on Cancel so Enter never destroys by
  * accident. No native dialog is ever shown.
  */
 export function ConfirmDialog({

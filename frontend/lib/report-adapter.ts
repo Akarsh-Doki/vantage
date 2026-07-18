@@ -20,14 +20,14 @@ import { formatReportDate } from "@/lib/utils"
  * ReportData shape the sample page renders, so a real report (full or free
  * sample) reuses the exact sample components.
  *
- * Current rows are structured at the source: brief/strategy arrive as
+ * Current rows are structured at the source. Brief and strategy arrive as
  * {headline?, paragraphs: [{text, cites: [n]}]} plus a numbered sources list
  * ([{n, title, url}]), with concepts carrying source_n. Legacy rows from
  * before that schema hold markdown-ish {text} blobs with inline
- * "[source: url]" markers and string[] sources; those are converted here so
+ * "[source: url]" markers and string[] sources. Those are converted here so
  * raw markdown is never rendered. Sections the backend doesn't produce
- * (competitive map, audience segments, KPIs) stay undefined and never render;
- * we never invent numbers to fill a chart.
+ * (competitive map, audience segments, KPIs) stay undefined and never render.
+ * We never invent numbers to fill a chart.
  */
 
 const CITE_PATTERN = /\[source:\s*([^[\]\s]+?)\s*\]/gi
@@ -97,7 +97,7 @@ function toSources(raw: unknown[]): Source[] {
   return raw.filter((s): s is string => typeof s === "string").map(sourceFromUrl)
 }
 
-/** Structured paragraphs pass through (cleaned); anything else is prose to split. */
+/** Structured paragraphs pass through (cleaned). Anything else is prose to split. */
 function toParagraphs(section: unknown, indexOfSource: (url: string) => number, sourceCount: number): CitedParagraph[] {
   if (typeof section !== "object" || section === null) return []
   const record = section as Record<string, unknown>
@@ -119,7 +119,7 @@ function toParagraphs(section: unknown, indexOfSource: (url: string) => number, 
     return paragraphs
   }
 
-  // Legacy: one markdown-ish text blob with inline [source: url] markers.
+  // Legacy. One markdown-ish text blob with inline [source: url] markers.
   if (typeof record.text === "string") {
     return record.text
       .split(/\n+/)
@@ -138,7 +138,7 @@ function toParagraphs(section: unknown, indexOfSource: (url: string) => number, 
   return []
 }
 
-// ---- optional visual data blocks (backend-validated; re-checked here) -------
+// ---- optional visual data blocks (backend-validated, re-checked here) -------
 // A chart renders only when its block arrived intact. Anything malformed
 // degrades to prose, never to a chart with made-up values.
 
@@ -323,7 +323,7 @@ function toKpis(raw: unknown, sourceCount: number): { items: Kpi[]; cites: numbe
 }
 
 /** brief.audience_segments + audience_persona -> audience section, or
- * undefined when neither arrived. The chart needs cited shares; the persona
+ * undefined when neither arrived. The chart needs cited shares. The persona
  * is qualitative and can stand alone. */
 function toAudience(segmentsRaw: unknown, personaRaw: unknown, sourceCount: number): Audience | undefined {
   const section: Audience = {}
@@ -422,7 +422,7 @@ function toConcept(
   const str = (key: string): string =>
     typeof raw[key] === "string" ? cleanText(raw[key] as string) : ""
   const mechanismId = str("mechanism_id")
-  // Numbered citation from the backend when present; legacy URL match otherwise.
+  // Numbered citation from the backend when present. Legacy URL match otherwise.
   let sourceIndex: number | undefined
   const n = Number(raw.source_n)
   if (Number.isInteger(n) && n >= 1 && n <= sourceCount) {
@@ -447,7 +447,7 @@ function toConcept(
 }
 
 /** Legacy rows may still hold the retired "(unparsed creative output)"
- * placeholder or a raw JSON blob in execution; those never render. Only
+ * placeholder or a raw JSON blob in execution. Those never render. Only
  * text that actually looks like serialized JSON is dropped, so a legitimate
  * execution that happens to open with a bracket still renders. */
 function isRenderableConcept(concept: CreativeConcept): boolean {
@@ -471,8 +471,8 @@ export function toReportData(
   const scored = concepts.length > 0 && concepts.every((c) => c.score !== undefined)
   const isSample = run.kind === "sample"
 
-  // Rich sections exist only when their validated data blocks arrived;
-  // otherwise those parts of the report are prose only. Never invented.
+  // Rich sections exist only when their validated data blocks arrived.
+  // Otherwise those parts of the report are prose only. Never invented.
   const tiles = toTiles(result.brief?.tiles)
   const landscape = toLandscape(
     result.brief?.competitor_map,

@@ -1,5 +1,5 @@
 // Shape of a full Vantage report. The sample page fills this with illustrative
-// data; real reports hydrate the same shape from the backend API through
+// data. Real reports hydrate the same shape from the backend API through
 // lib/report-adapter.ts. Sections the backend can't populate yet are optional
 // and simply don't render (never invent data to fill them).
 
@@ -42,14 +42,14 @@ export interface CompetitorRow {
 }
 
 export interface CompetitiveLandscape {
-  /** section lede; a report supplies it only when there is real copy for it */
+  /** section lede. A report supplies it only when there is real copy for it */
   lede?: string
-  /** axis captions, e.g. "Price: value to premium"; required when points exist */
+  /** axis captions, e.g. "Price: value to premium". Required when points exist */
   xLabel?: string
   yLabel?: string
-  /** map coordinates; the map renders only when these exist */
+  /** map coordinates. The map renders only when these exist */
   points?: CompetitorPoint[]
-  /** annotated whitespace region on the map (sample editorial; optional) */
+  /** annotated whitespace region on the map (sample editorial, optional) */
   highlight?: { x1: number; x2: number; y1: number; y2: number; title: string; note?: string }
   /** analysis paragraphs carry their citation numbers in `cites` */
   analysis?: CitedParagraph[]
@@ -74,7 +74,7 @@ export interface Persona {
 }
 
 export interface Audience {
-  /** segment shares; the chart renders only when these exist */
+  /** segment shares. The chart renders only when these exist */
   segments?: AudienceSegment[]
   persona?: Persona
   implication?: CitedParagraph
@@ -105,7 +105,7 @@ export interface FunnelStage {
 }
 
 export interface Strategy {
-  /** section heading; a generic default applies when absent */
+  /** section heading. A generic default applies when absent */
   title?: string
   lede?: string
   narrative: CitedParagraph[]
@@ -115,7 +115,7 @@ export interface Strategy {
   funnel?: FunnelStage[]
   /** note shown under the funnel diagram */
   funnelNote?: string
-  /** annotation on the funnel's steepest drop (sample editorial; optional) */
+  /** annotation on the funnel's steepest drop (sample editorial, optional) */
   funnelDropLabel?: string
   /** sources backing the funnel rates (1-based numbers) */
   funnelCites?: number[]
@@ -134,7 +134,7 @@ export interface CreativeConcept {
   mechanism: string
   /** id in the Vantage creative-pattern library */
   mechanismId: string
-  /** rubric score, e.g. "8.7 / 10"; absent when the run skipped the reviewer */
+  /** rubric score, e.g. "8.7 / 10". Absent when the run skipped the reviewer */
   score?: string
   idea?: string
   execution: string
@@ -142,7 +142,7 @@ export interface CreativeConcept {
   /** content format the concept is native to, e.g. "Instagram Reel" */
   format?: string
   budgetFit?: string
-  /** index into sources[]; absent when the grounding source is unknown */
+  /** index into sources[]. Absent when the grounding source is unknown */
   sourceIndex?: number
   calendar?: CalendarEntry[]
 }
@@ -156,7 +156,7 @@ export interface Kpi {
 export interface Source {
   title: string
   host: string
-  /** full URL; when present the source entry links out */
+  /** full URL. When present the source entry links out */
   url?: string
 }
 

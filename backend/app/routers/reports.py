@@ -1,5 +1,5 @@
 """Report endpoints. Every route requires a verified user (auth.UserId) and
-every query is owner-scoped in db.py — nothing here trusts client-sent ids."""
+every query is owner-scoped in db.py, so nothing here trusts client-sent ids."""
 
 from uuid import UUID
 
@@ -39,14 +39,12 @@ def _run_name(run: dict[str, object]) -> str | None:
 @limiter.limit(config.rate_limit_per_ip, key_func=limits.ip_key)
 @limiter.limit(config.rate_limit_per_user, key_func=limits.user_key)
 def create_report(
-    request: Request,  # noqa: ARG001 — required by slowapi; the body is `report`
+    request: Request,  # noqa: ARG001 (required by slowapi, the body is `report`)
     report: ReportRequest,
     user_id: UserId,
     background: BackgroundTasks,
 ) -> RunCreated:
-    # Cost control, enforced HERE and nowhere else: admins run free, invited
     # users spend one credit per accepted run, everyone else gets the clean
-    # 402 wall before any pipeline work (so a direct API call costs nothing).
     profile = db.get_profile(user_id)
     verdict, reason = limits.full_run_decision(profile, db.count_user_runs_today(user_id))
     if verdict == "limited":
@@ -54,7 +52,7 @@ def create_report(
     if verdict == "denied":
         raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=reason)
     if verdict == "credit" and not db.consume_full_report_credit(user_id):
-        # Two requests raced the last credit; the atomic spend decides.
+        # Two requests raced the last credit, and the atomic spend decides.
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Full reports are not enabled for your account yet.",
@@ -77,9 +75,7 @@ def create_report(
 
 @router.get("", response_model=RunListResponse)
 def list_reports(user_id: UserId) -> RunListResponse:
-    # A completed run is listed only when its deliverable is openable: this
-    # drops soft-deleted reports AND legacy sample runs that never stored one
-    # (their detail GET would 404). In-flight and failed runs always show.
+    # A completed run is listed only when its deliverable is openable. This drops soft-deleted reports and legacy sample runs that never stored one
     openable = db.report_run_ids(user_id)
     return RunListResponse(
         runs=[
@@ -100,7 +96,7 @@ def list_reports(user_id: UserId) -> RunListResponse:
 @router.get("/{run_id}", response_model=RunStatus)
 def get_report(run_id: UUID, user_id: UserId) -> RunStatus:
     run = db.get_run(str(run_id), user_id)
-    if run is None:  # not found OR not the caller's — indistinguishable on purpose
+    if run is None:  # not found OR not the caller's, indistinguishable on purpose
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     report_payload = None
     if run["status"] == "completed":
@@ -130,7 +126,7 @@ def get_report(run_id: UUID, user_id: UserId) -> RunStatus:
 
 @router.patch("/{run_id}", response_model=RenameResponse)
 def rename_report(run_id: UUID, request: RenameRequest, user_id: UserId) -> RenameResponse:
-    # Owner-scoped update; a miss (not found OR not the caller's) is a 404,
+    # Owner-scoped update. A miss (not found OR not the caller's) is a 404,
     # indistinguishable on purpose, same as GET.
     if not db.rename_run(str(run_id), user_id, request.name):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")

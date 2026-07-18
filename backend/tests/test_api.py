@@ -1,4 +1,4 @@
-"""API tests — graph, DB, and JWT verification all local/mocked; zero network.
+"""API tests. Graph, DB, and JWT verification all local/mocked, zero network.
 
 JWTs are real HS256 tokens signed with a test secret, so the actual
 verification path (signature, expiry, audience, sub) is exercised.
@@ -33,7 +33,7 @@ BODY: dict[str, Any] = {
     "competitor_urls": ["https://rival-a.example"],
 }
 
-# Mirrors the structured deliverable finalize() assembles: sectioned prose
+# Mirrors the structured deliverable finalize() assembles. Sectioned prose
 # with numeric cites and a numbered source list.
 RESULT: dict[str, Any] = {
     "brief": {
@@ -57,7 +57,7 @@ def _auth(user_id: str, **kwargs: int) -> dict[str, str]:
 
 
 class FakeGraph:
-    """Stands in for the compiled graph: both kinds run through stream()."""
+    """Stands in for the compiled graph. Both kinds run through stream()."""
 
     def __init__(self) -> None:
         self.interrupt = False
@@ -94,7 +94,7 @@ class FakeGraph:
 
 
 class FakeStore:
-    """In-memory stand-in for app.db — same function signatures."""
+    """In-memory stand-in for app.db, same function signatures."""
 
     def __init__(self) -> None:
         self.profiles: dict[str, dict[str, Any]] = {}
@@ -272,13 +272,13 @@ def api(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, FakeStore, FakeGra
     monkeypatch.setenv("SUPABASE_JWT_SECRET", SECRET)
     monkeypatch.delenv("SUPABASE_JWKS_URL", raising=False)
     monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:5173")
-    # Loose rate limits by default so ordinary tests never trip 429; the
+    # Loose rate limits by default so ordinary tests never trip 429. The
     # dedicated 429 test tightens them. Reset counters for isolation.
     monkeypatch.setenv("RATE_LIMIT_PER_IP", "100000/minute")
     monkeypatch.setenv("RATE_LIMIT_PER_USER", "100000/minute")
     limits.limiter.reset()
     store = FakeStore()
-    # Invited-tier users with headroom; individual tests adjust the
+    # Invited-tier users with headroom. Individual tests adjust the
     # allowance or the admin flag to exercise the other tiers.
     store.profiles[USER_A] = {
         "id": USER_A,
@@ -315,14 +315,14 @@ def test_valid_request_creates_queued_run_and_completes(
     assert run["user_id"] == USER_A
     assert run["status"] == "completed"
     assert run_id in store.reports
-    # The checkpointer thread_id is the run id — durable and resumable.
+    # The checkpointer thread_id is the run id, durable and resumable.
     assert fake_graph.stream_configs[0]["configurable"]["thread_id"] == run_id
 
     status = client.get(f"/reports/{run_id}", headers=_auth(USER_A))
     assert status.status_code == 200
     body = status.json()
     assert body["status"] == "completed"
-    # The stored deliverable is the structured schema: sectioned paragraphs
+    # The stored deliverable is the structured schema. Sectioned paragraphs
     # with numeric cites and a numbered source list, no markdown text blobs.
     assert body["report"]["brief"] == RESULT["brief"]
     assert body["report"]["strategy"] == RESULT["strategy"]
@@ -379,14 +379,14 @@ def test_sample_runs_async_persists_report_and_is_reopenable(
 
     first = client.post("/sample", json=BODY, headers=_auth(USER_A))
 
-    # Async like full runs: 202 + run_id immediately; the frontend polls.
+    # Async like full runs. 202 + run_id immediately, then the frontend polls.
     assert first.status_code == 202
     payload = first.json()
     run_id = payload["run_id"]
     assert payload["status"] == "queued"
     assert fake_graph.sample_states[0]["mode"] == "sample"
     assert store.profiles[USER_A]["free_sample_used"] is True
-    # After the background task: completed AND the deliverable is stored, so
+    # After the background task, completed AND the deliverable is stored, so
     # reopening from the dashboard works (this was the old 404 root cause).
     assert store.runs[run_id]["status"] == "completed"
     assert store.reports[run_id]["kind"] == "sample"
@@ -429,7 +429,7 @@ def test_failed_sample_is_saved_failed_and_quota_refunded(
 def test_completed_run_without_stored_report_is_hidden_from_list(
     api: tuple[TestClient, FakeStore, FakeGraph],
 ) -> None:
-    # A legacy sample run from before deliverables were persisted: completed,
+    # A legacy sample run from before deliverables were persisted. Completed,
     # but nothing in the reports table. Listing must not offer a dead link.
     client, store, _ = api
     project_id = store.create_project(USER_A, {"name": "Acme", "website_url": "https://a.example"})
@@ -501,7 +501,7 @@ def test_duplicate_report_names_are_auto_numbered(
     names = {
         r["run_id"]: r["name"] for r in client.get("/reports", headers=_auth(USER_A)).json()["runs"]
     }
-    # The first keeps the bare name; only true collisions get a number.
+    # The first keeps the bare name. Only true collisions get a number.
     assert names[first] == "Acme Anvils"
     assert names[second] == "Acme Anvils (2)"
     assert names[third] == "Acme Anvils (3)"
@@ -576,7 +576,7 @@ def test_rename_is_owner_scoped_and_validated(
     assert other.status_code == 404
     assert store.runs[run_id].get("display_name") is None
 
-    # Unauthenticated: 401. Invalid names: 422.
+    # Unauthenticated returns 401. Invalid names return 422.
     assert client.patch(f"/reports/{run_id}", json={"name": "x"}).status_code == 401
     empty = client.patch(f"/reports/{run_id}", json={"name": "   "}, headers=_auth(USER_A))
     assert empty.status_code == 422
@@ -587,7 +587,7 @@ def test_rename_is_owner_scoped_and_validated(
 
 
 def test_cost_cents_uses_model_rates() -> None:
-    # Haiku: $1/$5 per MTok -> 100/500 cents; Sonnet: $3/$15 -> 300/1500.
+    # Haiku costs $1/$5 per MTok, so 100/500 cents. Sonnet costs $3/$15, so 300/1500.
     assert runner._cost_cents("claude-haiku-4-5", 1_000_000, 1_000_000) == 600.0
     assert runner._cost_cents("claude-sonnet-5", 2_000_000, 0) == 600.0
     assert runner._cost_cents("unknown-model", 1_000_000, 0) == 0.0
@@ -596,7 +596,7 @@ def test_cost_cents_uses_model_rates() -> None:
 
 def test_tavily_priced_at_zero_without_warning(caplog: pytest.LogCaptureFixture) -> None:
     # The free-tier search tool is an explicit $0 entry, not the unpriced
-    # fallback — so it records zero cost without a per-call warning.
+    # fallback, so it records zero cost without a per-call warning.
     with caplog.at_level(logging.WARNING):
         assert runner._cost_cents("tavily", 0, 0) == 0.0
     assert "no price configured" not in caplog.text
@@ -647,7 +647,7 @@ def test_global_sample_cap_returns_friendly_capacity(
     first = client.post("/sample", json=BODY, headers=_auth(USER_A))
     assert first.status_code == 202  # fills the single daily slot
 
-    # A different user hits the account-level cap: friendly 503, not a 500,
+    # A different user hits the account-level cap. Friendly 503, not a 500,
     # and their one free sample is NOT consumed.
     second = client.post("/sample", json=BODY, headers=_auth(USER_B))
     assert second.status_code == 503
@@ -721,7 +721,7 @@ def test_failed_full_run_does_not_credit_admins(
     fake_graph.fail = True
 
     assert client.post("/reports", json=BODY, headers=_auth(USER_A)).status_code == 202
-    # No credit was spent, so none is refunded; admins can't mint credits.
+    # No credit was spent, so none is refunded. Admins can't mint credits.
     assert store.profiles[USER_A]["full_report_credits"] == 0
 
 
@@ -783,5 +783,5 @@ def test_cors_rejects_disallowed_origin(
             "Access-Control-Request-Method": "POST",
         },
     )
-    # Disallowed origin is never echoed back — the browser blocks the request.
+    # Disallowed origin is never echoed back, so the browser blocks the request.
     assert denied.headers.get("access-control-allow-origin") != "https://evil.example"

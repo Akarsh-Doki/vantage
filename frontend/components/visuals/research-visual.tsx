@@ -1,5 +1,5 @@
 // Mimics live search results populating, in the style of Tavily's "Found sources" demo.
-// Pure CSS animation (classes defined in globals.css); no client JS needed.
+// Pure CSS animation (classes defined in globals.css), no client JS needed.
 export function ResearchVisual() {
   const findings = [
     { delay: "0s", chip: "src 1", sub: false },

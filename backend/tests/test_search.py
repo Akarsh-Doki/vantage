@@ -1,4 +1,4 @@
-"""Tests for app.tools.search — Tavily fully mocked (CLAUDE.md rule 9: $0 to run)."""
+"""Tests for app.tools.search. Tavily fully mocked (CLAUDE.md rule 9: $0 to run)."""
 
 import asyncio
 import logging
@@ -56,7 +56,7 @@ def test_search_web_returns_title_url_content(fake_tavily: MagicMock) -> None:
 def test_blocked_domains_are_filtered_even_if_tavily_returns_them(
     fake_tavily: MagicMock,
 ) -> None:
-    # Belt and braces: the API is asked to exclude these, and the response is
+    # Belt and braces. The API is asked to exclude these, and the response is
     # re-filtered in case it does not.
     fake_tavily.search.return_value = {
         "results": [
@@ -115,7 +115,7 @@ def test_tavily_error_returns_empty_list_and_is_not_cached(
         assert search.search_web("acme competitors") == []
     assert "Tavily search failed" in caplog.text
 
-    # The failure was not cached: the same query retries and now succeeds.
+    # The failure was not cached, so the same query retries and now succeeds.
     assert len(search.search_web("acme competitors")) == 2
 
 
@@ -157,6 +157,6 @@ async def test_concurrent_searches_run_in_parallel(fake_tavily: MagicMock) -> No
 
     assert [len(r) for r in results] == [2, 2, 2]
     assert fake_tavily.search.call_count == 3
-    # Three blocking calls run sequentially would hold the loop >= 0.75s;
-    # genuinely parallel threads finish in ~0.25s.
+    # Three blocking calls run sequentially would hold the loop >= 0.75s.
+    # Genuinely parallel threads finish in ~0.25s.
     assert elapsed < 0.6

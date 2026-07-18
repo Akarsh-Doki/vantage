@@ -1,6 +1,6 @@
 """Shared pytest fixtures.
 
-CLAUDE.md rule 9: every LLM call is mocked here — tests must cost $0.
+Under CLAUDE.md rule 9, every LLM call is mocked here so tests cost $0.
 """
 
 from collections.abc import Iterator
@@ -14,9 +14,9 @@ from app.tools import search
 
 @pytest.fixture
 def fake_tavily(monkeypatch: pytest.MonkeyPatch) -> Iterator[MagicMock]:
-    """A mocked Tavily client wired into app.tools.search — searches cost $0.
+    """A mocked Tavily client wired into app.tools.search, so searches cost $0.
 
-    Yields the client mock; set `.search.return_value` / `.side_effect` per test.
+    Yields the client mock. Set `.search.return_value` / `.side_effect` per test.
     Clears the search cache on both sides so tests can't leak results into
     each other.
     """
@@ -30,9 +30,9 @@ def fake_tavily(monkeypatch: pytest.MonkeyPatch) -> Iterator[MagicMock]:
 
 @pytest.fixture
 def fake_anthropic(monkeypatch: pytest.MonkeyPatch) -> Iterator[MagicMock]:
-    """A mocked Anthropic client wired into app.llm — model calls cost $0.
+    """A mocked Anthropic client wired into app.llm, so model calls cost $0.
 
-    Yields the client mock; set `.messages.create.return_value` / `.side_effect`
+    Yields the client mock. Set `.messages.create.return_value` / `.side_effect`
     per test. The mocked class is exposed as `client.constructor` so tests can
     assert construction kwargs (api_key, max_retries). Clears the cached client
     on both sides so tests can't leak the mock into each other.

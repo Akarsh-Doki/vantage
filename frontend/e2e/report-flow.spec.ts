@@ -12,18 +12,18 @@ test("new report runs through progress, review, and the finished report", async 
   await page.getByLabel("Industry").fill("Specialty coffee")
   await page.getByRole("button", { name: "Generate full report" }).click()
 
-  // Progress: the polling stepper is live on the run page.
+  // Progress. The polling stepper is live on the run page.
   await page.waitForURL(`**/reports/${RUN_ID}`)
   await expect(page.getByRole("heading", { name: "Building your campaign" })).toBeVisible()
   await expect(page.getByText("Reading competitor sites")).toBeVisible()
 
-  // The run pauses at the human gate; the review panel appears via polling.
+  // The run pauses at the human gate. The review panel appears via polling.
   await expect(
     page.getByRole("heading", { name: "Your draft is ready for approval" }),
   ).toBeVisible({ timeout: 15_000 })
   await page.getByRole("button", { name: "Approve and finish" }).click()
 
-  // Approval flips the mock to completed; the finished report renders with
+  // Approval flips the mock to completed. The finished report renders with
   // the same components as the public sample.
   await expect(
     page.getByRole("heading", { name: "Blue Bottle Coffee", exact: true }),

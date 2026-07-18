@@ -1,7 +1,7 @@
 """Security-header middleware for the JSON API.
 
 Sets standard hardening headers on every response. The Content-Security-Policy
-is locked down for a JSON API (`default-src 'none'`) — but Swagger UI on the
+is locked down for a JSON API (`default-src 'none'`), but Swagger UI on the
 docs endpoints loads scripts/styles from a CDN, so CSP is omitted there (the
 other headers still apply). Disable /docs entirely in production if you don't
 need it.

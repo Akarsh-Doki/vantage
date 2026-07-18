@@ -1,6 +1,6 @@
 """Tests for app.runner: cost accounting plus the sample-run lifecycle
 (deliverable persisted on success, quota refunded on failure). DB and graph
-mocked; no network."""
+mocked, no network."""
 
 import logging
 from collections.abc import Iterator
@@ -16,7 +16,7 @@ _RESULT = {"brief": {"paragraphs": []}, "preview": True}
 
 
 class _FakeGraph:
-    """Streams like the compiled graph; one pricey Sonnet call per run."""
+    """Streams like the compiled graph. One pricey Sonnet call per run."""
 
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
@@ -84,7 +84,7 @@ def test_run_records_usage_accumulates_cost_and_warns(
     assert store["usage"][-1][0] == "user-1"
     assert store["run"]["cost_cents"] == 1800
     assert store["run"]["status"] == "completed"
-    # Over the 100-cent threshold → a warning for investigation.
+    # Over the 100-cent threshold, so a warning is logged for investigation.
     assert "over the 100-cent" in caplog.text
 
 
@@ -124,7 +124,7 @@ def test_failed_full_run_refunds_credit_not_sample_quota(
 
     assert store["run"]["status"] == "failed"
     assert store["refunds"] == []  # the sample quota is a separate pool
-    # A non-admin only reached the runner by spending a credit; it comes back.
+    # A non-admin only reached the runner by spending a credit, so it comes back.
     assert store["credit_grants"] == [("user-1", 1)]
 
 

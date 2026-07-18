@@ -1,5 +1,5 @@
-"""Tests for app.limits — concurrency cap, cost warning, and spend policy.
-No network, no HTTP layer; pure/async unit tests."""
+"""Tests for app.limits: concurrency cap, cost warning, and spend policy.
+No network, no HTTP layer, just pure/async unit tests."""
 
 import asyncio
 import logging
@@ -46,7 +46,7 @@ def test_warn_if_expensive_logs_over_threshold(
 
     caplog.clear()
     with caplog.at_level(logging.WARNING):
-        limits.warn_if_expensive("run-2", 50)  # exactly at threshold: not over
+        limits.warn_if_expensive("run-2", 50)  # exactly at threshold, not over
     assert caplog.text == ""
 
 
@@ -60,11 +60,11 @@ def test_sample_capacity_policy(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_full_run_decision_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PAID_DAILY_RUN_LIMIT", "3")
 
-    # No profile or no allowance: the wall, before any cost.
+    # No profile or no allowance means the wall, before any cost.
     assert limits.full_run_decision(None, 0)[0] == "denied"
     assert limits.full_run_decision({"full_report_credits": 0}, 0)[0] == "denied"
 
-    # Invited users spend a credit; admins never do.
+    # Invited users spend a credit. Admins never do.
     assert limits.full_run_decision({"full_report_credits": 2}, 0)[0] == "credit"
     assert limits.full_run_decision({"is_admin": True, "full_report_credits": 0}, 0)[0] == "admin"
 

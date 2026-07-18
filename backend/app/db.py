@@ -1,8 +1,8 @@
 """Persistence over Supabase PostgREST.
 
 Every function takes the authenticated user_id and scopes its query with it
-explicitly — RLS is the backstop, never the only guard (rules 3, 8). The
-PostgREST client builds parameterized requests; no SQL strings are ever
+explicitly. RLS is the backstop, never the only guard (rules 3, 8). The
+PostgREST client builds parameterized requests, so no SQL strings are ever
 assembled here.
 """
 
@@ -26,7 +26,7 @@ def now_iso() -> str:
 
 
 def _today_start_iso() -> str:
-    """Midnight UTC today — the lower bound for daily spend-cap counts."""
+    """Midnight UTC today, the lower bound for daily spend-cap counts."""
     return datetime.combine(datetime.now(tz=UTC).date(), time.min, tzinfo=UTC).isoformat()
 
 
@@ -93,7 +93,7 @@ def get_run(run_id: str, user_id: str) -> dict[str, Any] | None:
 def existing_run_names(user_id: str) -> set[str]:
     """Every name this user's runs currently answer to (display_name, or the
     project business name it falls back to). Used at creation time to append
-    a number to true collisions; manual renames are never renumbered."""
+    a number to true collisions. Manual renames are never renumbered."""
     names: set[str] = set()
     for run in list_runs(user_id):
         project = run.get("projects") or {}
@@ -105,8 +105,8 @@ def existing_run_names(user_id: str) -> set[str]:
 
 
 def disambiguate_name(base: str, existing: set[str]) -> str | None:
-    """None when `base` is free (the first report keeps the bare name);
-    otherwise the first free "base (n)" counting from 2. Pure on purpose."""
+    """None when `base` is free (the first report keeps the bare name).
+    Otherwise the first free "base (n)" counting from 2. Pure on purpose."""
     if base not in existing:
         return None
     n = 2
@@ -116,7 +116,7 @@ def disambiguate_name(base: str, existing: set[str]) -> str | None:
 
 
 def rename_run(run_id: str, user_id: str, name: str) -> bool:
-    """Set the user-facing display name; False when the run isn't the caller's."""
+    """Set the user-facing display name. Returns False when the run isn't the caller's."""
     rows = _rows(
         _client()
         .table("report_runs")
@@ -130,8 +130,8 @@ def rename_run(run_id: str, user_id: str, name: str) -> bool:
 
 
 def count_sample_runs_today() -> int:
-    """GLOBAL count of sample runs started today — the account-level spend
-    guard. Not user-scoped on purpose: it caps total free samples across all
+    """GLOBAL count of sample runs started today, the account-level spend
+    guard. Not user-scoped on purpose. It caps total free samples across all
     users so a bot or traffic spike can't drain Anthropic credits."""
     response = (
         _client()
@@ -243,7 +243,7 @@ def soft_delete_report(run_id: str, user_id: str) -> bool:
 
 
 def consume_full_report_credit(user_id: str) -> bool:
-    """Atomically spend one full-report credit; False when none remain.
+    """Atomically spend one full-report credit. Returns False when none remain.
     The decrement happens inside the SQL function, so two simultaneous
     requests can never double-spend the last credit."""
     response = _client().rpc("consume_full_report_credit", {"p_user_id": user_id}).execute()
@@ -251,7 +251,7 @@ def consume_full_report_credit(user_id: str) -> bool:
 
 
 def grant_full_report_credits(user_id: str, count: int) -> None:
-    """Add to a user's allowance (refund on a failed accepted run today;
+    """Add to a user's allowance (refund on a failed accepted run today, or
     Stripe fulfillment later)."""
     (
         _client()
@@ -261,7 +261,7 @@ def grant_full_report_credits(user_id: str, count: int) -> None:
 
 
 def claim_free_sample(user_id: str) -> bool:
-    """Atomically flip the one-free-sample flag; False if already used."""
+    """Atomically flip the one-free-sample flag. Returns False if already used."""
     rows = _rows(
         _client()
         .table("profiles")

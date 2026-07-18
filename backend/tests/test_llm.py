@@ -1,4 +1,4 @@
-"""Tests for app.llm — Anthropic client fully mocked (CLAUDE.md rule 9: $0 to run)."""
+"""Tests for app.llm. Anthropic client fully mocked (CLAUDE.md rule 9: $0 to run)."""
 
 import logging
 from typing import Any
@@ -70,8 +70,8 @@ def test_client_is_configured_with_bounded_retries(fake_anthropic: MagicMock) ->
 
     llm.call_model("claude-haiku-4-5", system="s", user="u")
 
-    # Transient-error retries are delegated to the SDK (backoff included);
-    # this pins the bound so it can't silently become unbounded or zero.
+    # Transient-error retries are delegated to the SDK (backoff included).
+    # This pins the bound so it can't silently become unbounded or zero.
     fake_anthropic.constructor.assert_called_once_with(api_key="test-key", max_retries=2)
 
 
@@ -88,7 +88,7 @@ async def test_call_model_async_returns_same_result_as_sync(fake_anthropic: Magi
     assert via_async == via_sync
     assert via_async.text == "a marketing plan"
     assert via_async.tokens_in == 120
-    # Both paths go through the same call_model; the requests must be identical.
+    # Both paths go through the same call_model, so the requests must be identical.
     first, second = fake_anthropic.messages.create.call_args_list
     assert first == second
 
@@ -99,7 +99,7 @@ def test_call_model_reports_usage_to_the_active_recorder(fake_anthropic: MagicMo
 
     with usage_recording(lambda *event: events.append(event)):
         llm.call_model("claude-haiku-4-5", system="s", user="u")
-    llm.call_model("claude-haiku-4-5", system="s", user="u")  # outside: not recorded
+    llm.call_model("claude-haiku-4-5", system="s", user="u")  # outside, so not recorded
 
     assert events == [("model", "claude-haiku-4-5", 120, 45)]
 

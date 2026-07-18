@@ -1,5 +1,5 @@
 """Deploy-asset guards: files the running service reads MUST ship in the
-Docker image. The July 2026 scoring regression happened exactly here: the
+Docker image. The July 2026 scoring regression happened exactly here. The
 image excluded data/, the reviewer rubric fell back to an empty prompt list,
 and every concept in a real report scored ~1.7/10."""
 

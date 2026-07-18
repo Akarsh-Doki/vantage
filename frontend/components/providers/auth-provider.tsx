@@ -13,7 +13,7 @@ interface AuthContextValue {
   signInWithPassword: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  /** sends the password-recovery email; resolves for unknown emails too */
+  /** sends the password-recovery email, resolves for unknown emails too */
   resetPassword: (email: string) => Promise<void>
   /** sets a new password on the current (recovery) session */
   updatePassword: (password: string) => Promise<void>

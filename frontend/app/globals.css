@@ -92,8 +92,8 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Anything clickable shows the hand cursor (browsers default buttons to
-     the arrow); disabled controls keep the default arrow. */
+  /* Anything clickable shows the hand cursor. Browsers default buttons to
+     the arrow, and disabled controls keep the default arrow. */
   button:not(:disabled),
   [role='button']:not(:disabled),
   summary {
@@ -270,16 +270,16 @@
 }
 
 /*
-  Print / "Save as PDF" export. The report's Export button calls window.print();
-  this block turns the browser print dialog into a clean document export.
+  Print and "Save as PDF" export. The report's Export button calls window.print().
+  This block turns the browser print dialog into a clean document export.
 */
 @media print {
   @page {
     margin: 14mm;
   }
 
-  /* Flip the theme tokens to plain black-on-white; everything derived from
-     them (backgrounds, cards, text) follows, so concept/section styling
+  /* Flip the theme tokens to plain black-on-white. Everything derived from
+     them (backgrounds, cards, text) follows, so concept and section styling
      stays intact and readable. Forest green is kept for accent labels. */
   :root {
     --background: #ffffff;
@@ -315,8 +315,8 @@
     glyph's advance in Chrome's print-to-PDF text layer, so titles, pull
     quotes, and pillar headings read as "BlueBottle" / "we'lltrack" in the
     exported file even though the DOM text is correct. Print gets neutral
-    tracking, explicit word spacing, and no ligatures; the screen keeps the
-    tight editorial look.
+    tracking, explicit word spacing, and no ligatures, while the screen keeps
+    the tight editorial look.
   */
   * {
     letter-spacing: normal !important;

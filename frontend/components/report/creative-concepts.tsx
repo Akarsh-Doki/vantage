@@ -31,7 +31,7 @@ export function CreativeConcepts({
           const source = c.sourceIndex !== undefined ? sources[c.sourceIndex] : undefined
           return (
             <article key={c.title} className="relative rounded-[10px] border border-hairline bg-white p-6 md:p-8">
-              {/* The raw rubric score is intentionally not rendered: it is
+              {/* The raw rubric score is intentionally not rendered. It is
                   review machinery, and a topped-up concept's number would
                   read as a grade. The section lede already says every concept
                   was scored before it reached the page. */}

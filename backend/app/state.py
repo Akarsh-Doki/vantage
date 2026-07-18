@@ -8,7 +8,7 @@ from langgraph.types import Send
 
 class Finding(TypedDict):
     text: str
-    source_url: str  # provenance is mandatory — a finding without a source is discarded
+    source_url: str  # provenance is mandatory, a finding without a source is discarded
     title: NotRequired[str]  # the page title, used as the numbered source's label
 
 
@@ -21,7 +21,7 @@ class State(TypedDict):
     strategy: dict[str, Any]
     concepts: list[dict[str, Any]]
     # Every scored candidate from every review round (passers excluded). Its
-    # own channel on purpose: review-dict updates must never wipe it, because
+    # own channel on purpose. Review-dict updates must never wipe it, because
     # it is the safety net that guarantees a report is never delivered with
     # zero concepts.
     concept_pool: list[dict[str, Any]]
@@ -32,7 +32,7 @@ class State(TypedDict):
 
 
 def fan_out(state: State) -> list[Send]:
-    """Sample mode runs the competitor agent only; full mode fans out to all three."""
+    """Sample mode runs the competitor agent only. Full mode fans out to all three."""
     if state["mode"] == "sample":
         return [Send("competitor_agent", state)]
     return [

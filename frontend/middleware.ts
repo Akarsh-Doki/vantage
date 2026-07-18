@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
 /**
- * Auth middleware: keeps the Supabase session cookies fresh on every request
+ * Auth middleware. Keeps the Supabase session cookies fresh on every request
  * and gates the app routes behind sign-in.
  *
  * Public: / , /login, /report (the sample), /auth/* (OAuth callback).
@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // Fail closed: without Supabase config nobody can be authenticated, so
+  // Fail closed. Without Supabase config nobody can be authenticated, so
   // protected routes behave as logged-out and public routes work normally.
   if (!url || !anonKey) {
     if (isProtected(pathname)) {

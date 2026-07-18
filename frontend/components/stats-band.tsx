@@ -10,7 +10,7 @@ const easeOut = (t: number) => 1 - Math.pow(1 - t, 4)
 const DURATION_MS = 1700
 
 /**
- * Renders the final value on the server / without JS; once the strip scrolls
+ * Renders the final value on the server / without JS. Once the strip scrolls
  * into view it ticks up from 0 with easing. prefers-reduced-motion (or a
  * missing IntersectionObserver) keeps the final value with no animation.
  */

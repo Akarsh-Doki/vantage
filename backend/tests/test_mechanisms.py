@@ -1,4 +1,4 @@
-"""Tests for app.tools.mechanisms — DB and embedder mocked (rule 9: $0 to run)."""
+"""Tests for app.tools.mechanisms. DB and embedder mocked (rule 9: $0 to run)."""
 
 import logging
 from typing import Any
@@ -36,7 +36,7 @@ def _mech(
 
 @pytest.fixture
 def fake_db(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Fake Supabase client + embedder; set .rpc/.table return data per test."""
+    """Fake Supabase client + embedder. Set .rpc/.table return data per test."""
     client = MagicMock()
     client.rpc.return_value.execute.return_value.data = []
     client.table.return_value.select.return_value.in_.return_value.execute.return_value.data = []
@@ -47,7 +47,7 @@ def fake_db(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
 def test_small_biz_bias_outranks_raw_similarity(fake_db: MagicMock) -> None:
     # A glossy big-budget mechanism is MORE similar, but the scrappy one is
-    # executable by a two-person shop — the bias must put it first.
+    # executable by a two-person shop, so the bias must put it first.
     fake_db.rpc.return_value.execute.return_value.data = [
         _mech("glossy_tv_spot", 0.90, budgets=["high"]),
         _mech("scrappy_stunt", 0.84, budgets=["zero", "low"], small_biz_example="a cafe did it"),
@@ -71,8 +71,8 @@ def test_business_goal_and_budget_matches_boost_equal_similarity(fake_db: MagicM
 
 
 def test_ranking_combines_filters_and_small_biz_favoring(fake_db: MagicMock) -> None:
-    # Highest raw similarity: a big-brand mechanism. It must lose to BOTH the
-    # filter-matched scrappy mechanism and the merely-scrappy one.
+    # The big-brand mechanism has the highest raw similarity. It must still
+    # lose to BOTH the filter-matched scrappy mechanism and the merely-scrappy one.
     fake_db.rpc.return_value.execute.return_value.data = [
         _mech("big_brand_glossy", 0.95, budgets=["high"]),
         _mech(

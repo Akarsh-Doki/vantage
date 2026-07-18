@@ -1,7 +1,7 @@
-"""API request/response models — strict Pydantic v2 (CLAUDE.md rule 1).
+"""API request/response models, strict Pydantic v2 (CLAUDE.md rule 1).
 
-URLs are validated for shape only (http/https); nothing is fetched here —
-user-supplied URLs are fetched exclusively by the Go fetcher inside the
+URLs are validated for shape only (http/https). Nothing is fetched here.
+User-supplied URLs are fetched exclusively by the Go fetcher inside the
 graph (rule 4).
 """
 
@@ -95,8 +95,8 @@ class RunListResponse(BaseModel):
 
 class ReportPayload(BaseModel):
     """The stored deliverable. brief/strategy are structured sections
-    ({headline?, paragraphs: [{text, cites: [n]}]}); creative concepts carry
-    source_n numeric citations; sources is the numbered citation list
+    ({headline?, paragraphs: [{text, cites: [n]}]}). Creative concepts carry
+    source_n numeric citations, and sources is the numbered citation list
     ([{n, title, url}]). list[Any] on sources tolerates legacy rows that
     stored plain URL strings."""
 

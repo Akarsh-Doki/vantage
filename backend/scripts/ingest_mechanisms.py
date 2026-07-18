@@ -3,11 +3,11 @@
 Upserts by primary key, so the script is idempotent and safe to re-run.
 
 Ingested: MECHANISMS (with local MiniLM embeddings) and CAMPAIGNS (sourced
-example evidence). Deliberately NOT ingested: the year-stamped trends block —
-current trends come from live research, not this file — plus the rubric and
+example evidence). Deliberately NOT ingested: the year-stamped trends block
+(current trends come from live research, not this file), plus the rubric and
 playbook blocks, which ship with the creative agent's prompt instead.
 
-``results`` and ``results_confidence`` are stored exactly as curated: figures
+`results` and `results_confidence` are stored exactly as curated. Figures
 and confidence annotations are never altered (CLAUDE.md rule 10).
 
 Usage: python scripts/ingest_mechanisms.py [path-to-knowledge-base.json]
@@ -24,7 +24,7 @@ from typing import Any
 DEFAULT_PATH = Path(__file__).resolve().parents[1] / "data" / "vantage-creative-knowledge-base.json"
 
 # coca_cola_recycle_logo is a known leftover duplicate of coca_cola_recycle_me
-# (its own `why` field says so) — never ingest it.
+# (its own `why` field says so), so never ingest it.
 SKIP_CAMPAIGN_IDS = frozenset({"coca_cola_recycle_logo"})
 
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # 384-dim, free, runs locally
@@ -58,7 +58,7 @@ def mechanism_row(mechanism: dict[str, Any], embedding: Sequence[float]) -> dict
 
 
 def campaign_row(campaign: dict[str, Any]) -> dict[str, Any]:
-    # results / results_confidence are copied verbatim — never rounded,
+    # results / results_confidence are copied verbatim, never rounded,
     # reworded, or upgraded. The confidence annotations (including CONTESTED
     # notes) are the whole point of the curation (rule 10).
     return {
@@ -92,7 +92,7 @@ def ingest(data: dict[str, Any], encode: Encoder, upsert: Upserter) -> dict[str,
         if campaign["id"] in SKIP_CAMPAIGN_IDS:
             skipped_duplicate.append(campaign["id"])
         elif campaign["mechanism"] not in known_mechanisms:
-            # would violate the FK — skip loudly instead of failing the batch
+            # would violate the FK, so skip loudly instead of failing the batch
             skipped_unknown.append(campaign["id"])
         else:
             rows.append(campaign_row(campaign))

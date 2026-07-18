@@ -26,7 +26,7 @@ export async function getSupabaseServerClient() {
             cookieStore.set(name, value, options)
           }
         } catch {
-          // Called from a Server Component where cookies are read-only; the
+          // Called from a Server Component where cookies are read-only. The
           // middleware refreshes sessions, so this is safe to ignore.
         }
       },

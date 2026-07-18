@@ -32,7 +32,7 @@ export type BackendRunStatus = "queued" | "running" | "awaiting_review" | "compl
 /**
  * Product-facing status shown in the UI. The backend keeps `status` in a small
  * enum and rides finer phases in `current_step` (research:* / generating:* /
- * finalizing / done); `deriveReportStatus` collapses the pair into this.
+ * finalizing / done). `deriveReportStatus` collapses the pair into this.
  */
 export type ReportStatus =
   | "queued"
@@ -85,13 +85,13 @@ export interface RunCreated {
 }
 
 // ---------- the structured deliverable ----------
-// Mirror of what backend finalize() assembles (backend/app/graph.py): plain
+// Mirror of what backend finalize() assembles (backend/app/graph.py). Plain
 // prose sections that cite the numbered sources list by n, never markdown or
 // inline "[source: url]" text. Legacy rows from before this schema may still
-// hold {text: string} sections and string[] sources; lib/report-adapter.ts
+// hold {text: string} sections and string[] sources. lib/report-adapter.ts
 // converts those.
 
-/** One plain-prose paragraph; cites holds the n values of its sources. */
+/** One plain-prose paragraph. cites holds the n values of its sources. */
 export interface CitedParagraphPayload {
   text: string
   cites: number[]
@@ -114,7 +114,7 @@ export interface StrategyPayload {
   paragraphs: CitedParagraphPayload[]
 }
 
-/** One creative concept; source_n points into the numbered sources list. */
+/** One creative concept. source_n points into the numbered sources list. */
 export interface ConceptPayload {
   title: string
   mechanism_id: string
@@ -134,7 +134,7 @@ export interface ReportResult {
   brief: Record<string, unknown> | null
   strategy: Record<string, unknown> | null
   creative: Record<string, unknown>[] | null
-  /** SourcePayload[] on current rows; string[] on legacy rows */
+  /** SourcePayload[] on current rows, string[] on legacy rows */
   sources: unknown[] | null
 }
 

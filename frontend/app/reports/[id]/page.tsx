@@ -94,7 +94,7 @@ export default function ReportRunPage() {
     }
   }
 
-  // ----- finished: full and sample render with the same report components -----
+  // ----- finished, full and sample render with the same report components -----
   if (status === "done" && report?.report) {
     const isSample = report.kind === "sample"
     const data = toReportData(report.report, {

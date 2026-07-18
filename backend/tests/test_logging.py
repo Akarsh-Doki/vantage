@@ -1,4 +1,4 @@
-"""Tests for app.logging_config — secrets never survive redaction."""
+"""Tests for app.logging_config. Secrets never survive redaction."""
 
 import logging
 
@@ -31,8 +31,8 @@ def test_redacts_provider_keys() -> None:
 
 
 def test_formatter_redacts_interpolated_secret() -> None:
-    # A secret arriving via %-args (not a literal) must still be scrubbed —
-    # this is why redaction is a formatter, not a filter.
+    # A secret arriving via %-args (not a literal) must still be scrubbed.
+    # That is why redaction is a formatter, not a filter.
     fmt = RedactingFormatter("%(message)s")
     record = logging.LogRecord(
         "vantage", logging.INFO, "path", 1, "api_key=%s", ("supersecretvalue",), None

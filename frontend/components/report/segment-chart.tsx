@@ -6,7 +6,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import type { AudienceSegment } from "@/lib/report-types"
 import { axisTickStyle, chart, ChartTooltip } from "./chart-theme"
 
-/** Value label at the bar end; the primary bar also gets its annotation. */
+/** Value label at the bar end. The primary bar also gets its annotation. */
 function BarLabel(props: {
   x?: number | string
   y?: number | string

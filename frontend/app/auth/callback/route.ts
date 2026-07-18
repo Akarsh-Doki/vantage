@@ -3,7 +3,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server"
 
 /**
  * OAuth / email-confirmation callback. Supabase redirects here with a PKCE
- * `code`; we exchange it for a session (stored in cookies) and forward the
+ * `code`. We exchange it for a session (stored in cookies) and forward the
  * user on. `next` is restricted to same-origin paths to prevent open redirects.
  */
 export async function GET(request: Request) {
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   }
 
   // Password-recovery links that failed verification (expired, already used)
-  // arrive without a usable code; show the reset page's clean invalid-link
+  // arrive without a usable code. Show the reset page's clean invalid-link
   // state instead of a silent login error.
   if (next.startsWith("/reset-password")) {
     return NextResponse.redirect(`${origin}/reset-password?error=link`)

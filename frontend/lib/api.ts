@@ -21,10 +21,10 @@ export class ApiError extends Error {
 }
 
 /**
- * 402 from the backend: the user's plan doesn't cover this action (e.g. full
- * report on a free account, or the one free sample already used). The backend
- * is the source of truth for paid/free; the client only reacts to this error,
- * it never decides access itself.
+ * 402 from the backend means the user's plan doesn't cover this action (e.g.
+ * full report on a free account, or the one free sample already used). The
+ * backend is the source of truth for paid/free. The client only reacts to this
+ * error, it never decides access itself.
  */
 export class PaymentRequiredError extends ApiError {
   constructor(message: string) {
@@ -43,7 +43,7 @@ function baseUrl(): string {
 
 async function request<T>(path: string, method: string, body?: unknown): Promise<T> {
   // Read the session fresh on every call so a refreshed access token is always
-  // used; getSession() transparently refreshes an expired one.
+  // used. getSession() transparently refreshes an expired one.
   const supabase = getSupabaseBrowserClient()
   const {
     data: { session },
@@ -87,14 +87,14 @@ export const api = {
   /** GET /reports */
   listReports: () => request<ReportListResponse>("/reports", "GET"),
 
-  /** GET /reports/{id}: status, plus result when completed. */
+  /** GET /reports/{id}. Status, plus result when completed. */
   getReport: (id: string) => request<Report>(`/reports/${encodeURIComponent(id)}`, "GET"),
 
   /** POST /reports/{id}/approve */
   approveReport: (id: string, input: ApproveInput = { approved: true }) =>
     request<RunCreated>(`/reports/${encodeURIComponent(id)}/approve`, "POST", input),
 
-  /** PATCH /reports/{id}: rename the report (owner only). */
+  /** PATCH /reports/{id}. Rename the report (owner only). */
   renameReport: (id: string, name: string) =>
     request<RenameResponse>(`/reports/${encodeURIComponent(id)}`, "PATCH", { name }),
 
@@ -102,8 +102,8 @@ export const api = {
   deleteReport: (id: string) => request<DeleteResponse>(`/reports/${encodeURIComponent(id)}`, "DELETE"),
 
   /**
-   * POST /sample: starts the free reduced run (async, like createReport);
-   * poll GET /reports/{run_id} for progress. PaymentRequiredError once used.
+   * POST /sample. Starts the free reduced run (async, like createReport).
+   * Poll GET /reports/{run_id} for progress. PaymentRequiredError once used.
    */
   createSample: (input: ReportInput) => request<RunCreated>("/sample", "POST", input),
 }

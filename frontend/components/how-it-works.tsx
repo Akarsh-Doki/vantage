@@ -103,7 +103,7 @@ const steps = [
   },
 ]
 
-/** Miniature, obviously stylized report card; the real thing lives at /report. */
+/** Miniature, obviously stylized report card. The real thing lives at /report. */
 function MiniReport() {
   return (
     <div

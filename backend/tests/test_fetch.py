@@ -1,4 +1,4 @@
-"""Tests for app.tools.fetch — the Go fetcher call is mocked ($0, no network)."""
+"""Tests for app.tools.fetch. The Go fetcher call is mocked ($0, no network)."""
 
 from unittest.mock import MagicMock
 

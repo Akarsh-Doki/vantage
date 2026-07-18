@@ -1,12 +1,12 @@
 """Quality-eval harness for the Vantage pipeline.
 
-This measures OUTPUT QUALITY of generated campaigns — distinct from the pytest
+This measures OUTPUT QUALITY of generated campaigns, distinct from the pytest
 suite, which tests code correctness. It runs the full graph per dataset item
 and scores:
 
-- groundedness  : computed — fraction of concepts whose grounded_in source_url
-                  appears in the run's research (the moat metric; rule 10).
-- relevance     : LLM-graded 1-5 — one Sonnet judge call vs. the item's
+- groundedness  : computed. Fraction of concepts whose grounded_in source_url
+                  appears in the run's research (the moat metric, rule 10).
+- relevance     : LLM-graded 1-5. One Sonnet judge call against the item's
                   expectations.
 - cost_cents    : the graph run's model/search/fetch spend.
 - latency_seconds : wall-clock for the graph run.
@@ -15,19 +15,19 @@ Cost safety (this harness spends real money on a real run):
   --dry-run   fully mocks the model/search/fetch/retrieval, so the harness can
               be debugged for $0.
   --limit N   run only the first N items.
-  --mode M    graph mode {full,sample}; sample is ~10x cheaper (Haiku, one
+  --mode M    graph mode {full,sample}. Sample is ~10x cheaper (Haiku, one
               concept, no review) for cheap iteration. Default full.
   --use-cached-research
               reuse each business's saved research (skip live search/fetch/
-              distill); first run saves it to evals/cache/, later runs reload
+              distill). First run saves it to evals/cache/, later runs reload
               it so you only re-pay the creative + review steps. Opt-in.
   A real run prints an estimated cost (mode-aware) and requires a typed
   confirmation first.
 
 Reporting: always prints a per-item + aggregate table and writes a JSON report
-to evals/results/; also logs to LangSmith when LANGSMITH_API_KEY is set.
+to evals/results/. Also logs to LangSmith when LANGSMITH_API_KEY is set.
 
-Usage (from backend/, either form works — no PYTHONPATH needed):
+Usage (from backend/, either form works, no PYTHONPATH needed):
   python -m evals.run_eval --dry-run
   python evals/run_eval.py --limit 3
   make eval ARGS="--dry-run"
@@ -54,7 +54,7 @@ from dotenv import load_dotenv
 # Load backend/.env and put the backend root on sys.path BEFORE importing the
 # app/evals packages. load_dotenv (pointed at backend/.env explicitly) makes
 # env available when the eval runs via `python -m evals.run_eval`, where
-# there's no uvicorn to inject it; the sys.path insert lets a direct
+# there's no uvicorn to inject it. The sys.path insert lets a direct
 # `python evals/run_eval.py` resolve `from app import ...` with no PYTHONPATH.
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(_BACKEND_ROOT / ".env")
@@ -77,9 +77,9 @@ RESULTS_DIR = EVALS_DIR / "results"
 CACHE_DIR = EVALS_DIR / "cache"  # per-business research, saved/reloaded with --use-cached-research
 
 # Rough per-item estimate for the pre-run cost gate, by mode. A full run makes
-# several Haiku research calls plus Sonnet synthesis/creative/review; a sample
+# several Haiku research calls plus Sonnet synthesis/creative/review. A sample
 # run is Haiku-only with one concept and no review (~10x cheaper). Deliberately
-# conservative; reconcile against the Anthropic console.
+# conservative, reconcile against the Anthropic console.
 _ESTIMATED_CENTS_PER_ITEM = {"full": 45, "sample": 3}
 
 _JUDGE_SYSTEM = (
@@ -92,9 +92,9 @@ _JUDGE_SYSTEM = (
     "one sentence of justification."
 )
 
-# A judge takes (model, system, user, max_tokens) and returns a ModelResponse —
-# call_model's shape, so the real judge is call_model and the dry-run judge is
-# a fake with the same signature.
+# A judge takes (model, system, user, max_tokens) and returns a ModelResponse.
+# That's call_model's shape, so the real judge is call_model and the dry-run
+# judge is a fake with the same signature.
 Judge = Callable[[str, str, str, int], ModelResponse]
 
 
@@ -109,8 +109,8 @@ class ItemResult:
     error: str | None = None
     judge_reason: str = ""
     # The COMPLETE finalized campaign from the graph (concepts with titles,
-    # mechanisms, grounded_in, executions, why_ownable, budget_fit; the brief,
-    # strategy, and sources list). Written to the JSON report so the best
+    # mechanisms, grounded_in, executions, why_ownable, budget_fit, plus the
+    # brief, strategy, and sources list). Written to the JSON report so the best
     # real-run result can be harvested as the Phase 7 pre-generated sample.
     campaign: dict[str, Any] = field(default_factory=dict)
 
@@ -183,10 +183,11 @@ def _save_research_cache(path: Path, business_name: str, research: list[dict[str
 
 
 def _patch_cached_research(stack: ExitStack, research: list[dict[str, Any]]) -> None:
-    """Feed cached findings into the graph instead of doing live research: the
+    """Feed cached findings into the graph instead of doing live research. The
     competitor agent yields the whole cache and the others contribute nothing,
-    so no search/fetch/distill runs. Patch BEFORE build_graph — the compiled
-    graph binds node functions by reference, so a built graph can't be patched."""
+    so no search/fetch/distill runs. Patch BEFORE build_graph, because the
+    compiled graph binds node functions by reference, so a built graph can't be
+    patched."""
     empty: dict[str, list[dict[str, Any]]] = {"research": []}
     stack.enter_context(
         patch.object(graph_module, "competitor_agent", lambda _state: {"research": research})
@@ -199,7 +200,7 @@ def grade_relevance(
     concepts: list[dict[str, Any]], expectations: str, judge: Judge
 ) -> tuple[int | None, str]:
     """Return (relevance 1-5 or None, raw grader reply). None means the reply
-    could not be parsed to a 1-5 score — the raw output is logged so a broken
+    could not be parsed to a 1-5 score. The raw output is logged so a broken
     grader is visible instead of silently scoring everything 1."""
     payload = json.dumps({"expectations": expectations, "concepts": concepts}, sort_keys=True)
     raw = judge(SONNET, _JUDGE_SYSTEM, payload, 300).text
@@ -219,13 +220,13 @@ def run_item(
     dry_run: bool,
 ) -> ItemResult:
     """Run one graph execution in `mode` and score it. A failure is captured
-    as an error result, never raised — one bad item must not abort the eval.
+    as an error result, never raised, so one bad item must not abort the eval.
     Sample mode is ~10x cheaper (Haiku throughout, one concept, no review) and
     never hits the human gate, so the resume branch below is full-mode only.
 
     With use_cache, this business's saved research is reloaded (skipping live
-    search/fetch/distill) when a cache file exists; otherwise research runs
-    live and — on a real (non-dry) run — is saved for next time."""
+    search/fetch/distill) when a cache file exists. Otherwise research runs
+    live and, on a real (non-dry) run, is saved for next time."""
     business = item["business_input"]
     name = str(business.get("name", "?"))
     meter = EvalMeter()
@@ -238,7 +239,7 @@ def run_item(
         with ExitStack() as stack, usage_recording(meter):
             graph: Any  # the compiled graph is treated opaquely here
             if cached is not None:
-                # Build a graph whose research agents replay the cache — must
+                # Build a graph whose research agents replay the cache. Must
                 # patch before build_graph (nodes are bound by reference).
                 _patch_cached_research(stack, cached)
                 graph = graph_module.build_graph(MemorySaver())
@@ -248,7 +249,7 @@ def run_item(
             if "__interrupt__" in state:
                 # Full mode pauses at the human_review gate before finalize
                 # runs. Auto-approve so finalize assembles the complete
-                # campaign (concepts + sources); the eval isn't testing the
+                # campaign (concepts + sources). The eval isn't testing the
                 # gate, and Phase 7 harvests the finalized artifact.
                 state = graph.invoke(Command(resume={"approved": True}), config)
     except Exception as exc:
@@ -256,13 +257,13 @@ def run_item(
         return ItemResult(
             name=name,
             groundedness=0.0,
-            relevance=None,  # the run failed — relevance is unknown, not 1
+            relevance=None,  # the run failed, so relevance is unknown, not 1
             cost_cents=round(meter.cost),
             latency_seconds=round(time.monotonic() - start, 2),
             num_concepts=0,
             error=f"{type(exc).__name__}: {exc}"[:300],
         )
-    latency = time.monotonic() - start  # graph run only; judge cost/time excluded
+    latency = time.monotonic() - start  # graph run only, judge cost/time excluded
 
     # Save freshly-computed research so later --use-cached-research runs skip it.
     # Never cache dry-run output (it's mock data that would poison real runs).
@@ -292,7 +293,7 @@ def run_item(
     )
 
 
-# --- dry-run fakes (fully offline; $0) ----------------------------------------
+# --- dry-run fakes (fully offline, $0) ----------------------------------------
 _EVAL_SOURCE_URL = "https://eval.example/source-a"
 
 
@@ -494,10 +495,10 @@ def write_report(
 
 
 def log_to_langsmith(results: list[ItemResult], *, dry_run: bool) -> None:
-    """Best-effort: log each item as a run with its scores as feedback. Any
-    failure is logged and swallowed — reporting must never break the eval."""
+    """Best-effort logging of each item as a run with its scores as feedback.
+    Any failure is logged and swallowed, so reporting never breaks the eval."""
     try:
-        from langsmith import Client  # noqa: PLC0415 — optional, only when enabled
+        from langsmith import Client  # noqa: PLC0415 (optional, only when enabled)
 
         client = Client()
         project = os.environ.get("LANGSMITH_PROJECT", "vantage-evals")
@@ -517,7 +518,7 @@ def log_to_langsmith(results: list[ItemResult], *, dry_run: bool) -> None:
             )
             for key, value in (
                 ("groundedness", r.groundedness),
-                ("relevance", r.relevance),  # may be None (unparsed) — skipped below
+                ("relevance", r.relevance),  # may be None (unparsed), skipped below
                 ("cost_cents", r.cost_cents),
                 ("latency_seconds", r.latency_seconds),
             ):
@@ -544,7 +545,7 @@ def _confirm_real_run(item_count: int, mode: str, *, use_cache: bool) -> bool:
         print("Cached research will be reused where available — actual cost may be lower.")
     try:
         reply = input("Type 'run' to proceed, anything else to abort: ").strip().lower()
-    except EOFError:  # non-interactive stdin (e.g. CI) — refuse rather than spend
+    except EOFError:  # non-interactive stdin (e.g. CI), refuse rather than spend
         return False
     return reply == "run"
 
@@ -578,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     judge: Judge = _fake_call_model if args.dry_run else call_model
-    graph = graph_module.build_graph(MemorySaver())  # ephemeral checkpointer; no Postgres
+    graph = graph_module.build_graph(MemorySaver())  # ephemeral checkpointer, no Postgres
 
     results: list[ItemResult] = []
     with ExitStack() as stack:

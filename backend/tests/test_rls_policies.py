@@ -14,7 +14,7 @@ the default suite stays dependency-free. To run locally:
 The harness installs a tiny Supabase shim (auth schema, auth.users, an
 auth.uid() that reads request.jwt.claims exactly like Supabase's, and the
 anon/authenticated/service_role roles), then applies migrations 005 through
-007 verbatim. Zero API spend; nothing here touches the network.
+007 verbatim. Zero API spend, nothing here touches the network.
 """
 
 import os
@@ -85,7 +85,7 @@ def db() -> Iterator["psycopg.Connection"]:
         cur.execute((_MIGRATIONS / "005_app_tables.sql").read_text(encoding="utf-8"))
         cur.execute((_MIGRATIONS / "006_run_display_name.sql").read_text(encoding="utf-8"))
         cur.execute((_MIGRATIONS / "007_full_report_credits.sql").read_text(encoding="utf-8"))
-        # Seed both users; the signup trigger creates their profiles rows.
+        # Seed both users. The signup trigger creates their profiles rows.
         for user_id, email in ((USER_A, "a@test.example"), (USER_B, "b@test.example")):
             cur.execute("insert into auth.users (id, email) values (%s, %s)", (user_id, email))
             cur.execute(
@@ -116,7 +116,7 @@ def db() -> Iterator["psycopg.Connection"]:
 
 @pytest.fixture
 def as_user(db: "psycopg.Connection"):
-    """Run SQL the way Supabase serves a signed-in client: as the
+    """Run SQL the way Supabase serves a signed-in client, as the
     `authenticated` role with the user's id in request.jwt.claims."""
 
     def _run(user_id: str, sql: str, params: tuple = ()) -> list[tuple]:
@@ -143,7 +143,7 @@ def test_users_see_only_their_own_rows(as_user) -> None:
 
 
 def test_cross_user_writes_touch_zero_rows(as_user) -> None:
-    # RLS filters rather than errors: a hostile soft-delete against another
+    # RLS filters rather than errors. A hostile soft-delete against another
     # user's report succeeds as a statement but affects zero rows.
     affected = as_user(
         USER_A, "update public.reports set deleted_at = now() where run_id = %s", (USER_B,)
@@ -164,16 +164,16 @@ def test_report_runs_are_read_only_for_clients(as_user) -> None:
 
 
 def test_soft_deleted_reports_vanish_from_reads(db, as_user) -> None:
-    # Documented Postgres behavior this suite CAUGHT: a client cannot soft
+    # Documented Postgres behavior this suite CAUGHT. A client cannot soft
     # delete their own report, because setting deleted_at makes the NEW row
     # fail the select policy's "deleted_at is null" and Postgres requires an
     # updated row to stay readable when the statement reads the table. The
     # app is unaffected (deletes go through the backend's service role, which
-    # bypasses RLS); the client-side soft-delete grant is effectively dead.
+    # bypasses RLS). The client-side soft-delete grant is effectively dead.
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_user(USER_A, "update public.reports set deleted_at = now() where run_id = %s", (USER_A,))
 
-    # The real path: the backend (service role semantics; superuser here)
+    # The real path. The backend (service role semantics, superuser here)
     # soft deletes, and the row vanishes from the owner's reads.
     with db.cursor() as cur:
         cur.execute("update public.reports set deleted_at = now() where run_id = %s", (USER_A,))
@@ -186,7 +186,7 @@ def test_soft_deleted_reports_vanish_from_reads(db, as_user) -> None:
 
 
 def test_profile_plan_column_is_backend_owned(as_user) -> None:
-    # display_name is granted; plan and free_sample_used are not.
+    # display_name is granted. plan and free_sample_used are not.
     affected = as_user(
         USER_A, "update public.profiles set display_name = 'Me' where id = %s", (USER_A,)
     )
@@ -196,7 +196,7 @@ def test_profile_plan_column_is_backend_owned(as_user) -> None:
 
 
 def test_clients_cannot_touch_the_full_report_allowance(as_user) -> None:
-    # The cost-control columns are backend-owned: a signed-in client can read
+    # The cost-control columns are backend-owned. A signed-in client can read
     # their own balance (profiles_select_own) but can never change it.
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_user(
@@ -204,7 +204,7 @@ def test_clients_cannot_touch_the_full_report_allowance(as_user) -> None:
         )
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_user(USER_A, "update public.profiles set is_admin = true where id = %s", (USER_A,))
-    # Nor mint or spend allowance through the RPCs; they are service_role only.
+    # Nor mint or spend allowance through the RPCs. They are service_role only.
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_user(USER_A, "select public.grant_full_report_credits(%s, 100)", (USER_A,))
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -213,7 +213,7 @@ def test_clients_cannot_touch_the_full_report_allowance(as_user) -> None:
 
 def test_credit_rpcs_spend_and_grant_atomically(db) -> None:
     # Exercise the real SQL functions as the backend does (service role
-    # semantics; superuser here): grant 2, spend to zero, then the spend
+    # semantics, superuser here): grant 2, spend to zero, then the spend
     # correctly reports no credit left and the balance never goes negative.
     with db.cursor() as cur:
         cur.execute("select public.grant_full_report_credits(%s, 2)", (USER_A,))
@@ -223,7 +223,7 @@ def test_credit_rpcs_spend_and_grant_atomically(db) -> None:
         cur.execute("select public.consume_full_report_credit(%s)", (USER_A,))
         assert cur.fetchone()[0] is True
         cur.execute("select public.consume_full_report_credit(%s)", (USER_A,))
-        assert cur.fetchone()[0] is not True  # empty: no row updated
+        assert cur.fetchone()[0] is not True  # empty, no row updated
         cur.execute("select full_report_credits from public.profiles where id = %s", (USER_A,))
         assert cur.fetchone()[0] == 0
 

@@ -1,4 +1,4 @@
-"""Tests for scripts.ingest_mechanisms — DB and embedding model faked ($0 to run)."""
+"""Tests for scripts.ingest_mechanisms. DB and embedding model faked ($0 to run)."""
 
 from typing import Any
 
@@ -80,7 +80,7 @@ def _run(data: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], dict[st
 def test_ingest_upserts_mechanisms_and_campaigns_and_nothing_else() -> None:
     upserted, summary = _run(KB)
 
-    # Exactly two tables touched — the trends/rubric blocks never reach the DB.
+    # Exactly two tables touched. The trends/rubric blocks never reach the DB.
     assert sorted(upserted) == ["creative_campaigns", "creative_mechanisms"]
     assert summary["mechanisms"] == 1
     assert summary["campaigns"] == 1

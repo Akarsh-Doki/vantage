@@ -1,8 +1,8 @@
 """Env-backed configuration for abuse/cost protection and the HTTP surface.
 
-Every value is read at call time (not cached at import) so deployments — and
-tests — can set env vars without rebuilding the process. All limits are
-configurable; the defaults below are conservative production starting points.
+Every value is read at call time (not cached at import) so deployments and
+tests can set env vars without rebuilding the process. All limits are
+configurable, and the defaults below are conservative production starting points.
 """
 
 import logging

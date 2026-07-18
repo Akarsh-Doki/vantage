@@ -1,11 +1,4 @@
-"""The one-free-sample endpoint: auth, global + per-user quota gates, then the
-same async run lifecycle as full reports (202 + run_id; the frontend polls
-GET /reports/{id}). The sample deliverable IS persisted, so a finished sample
-can be reopened from the dashboard exactly like a full report. If the
-background run fails, execute_run refunds the user's one free sample."""
-
 import logging
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from starlette.concurrency import run_in_threadpool
 
@@ -18,26 +11,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sample"])
 
-
 @router.post("/sample", response_model=RunCreated, status_code=status.HTTP_202_ACCEPTED)
 @limiter.limit(config.rate_limit_per_ip, key_func=limits.ip_key)
 @limiter.limit(config.rate_limit_per_user, key_func=limits.user_key)
 async def create_sample(
-    request: Request,  # noqa: ARG001 — required by slowapi; the body is `report`
+    request: Request,
     report: ReportRequest,
     user_id: UserId,
     background: BackgroundTasks,
 ) -> RunCreated:
-    # Account-level spend guard FIRST — a capacity rejection must not consume
-    # the caller's one free sample. Friendly 503, never a 500.
+    # A capacity rejection from the account-level spend guard must not consume the caller's one free sample. Return a friendly 503, never a 500.
     samples_today = await run_in_threadpool(db.count_sample_runs_today)
     if not limits.sample_capacity_available(samples_today):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Sample capacity reached for today. Please try again later.",
         )
-    # Per-user quota: free = exactly one sample, ever (atomic flip). A failed
-    # run refunds it inside execute_run.
+
     if not await run_in_threadpool(db.claim_free_sample, user_id):
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -45,7 +35,7 @@ async def create_sample(
         )
 
     business = report.to_business()
-    # Snapshot names BEFORE creating this run so it never collides with itself.
+    # Snapshot names before creating this run so it never collides with itself.
     taken = await run_in_threadpool(db.existing_run_names, user_id)
     project_id = await run_in_threadpool(db.create_project, user_id, business)
     run_id = await run_in_threadpool(db.create_run, user_id, project_id, "sample")

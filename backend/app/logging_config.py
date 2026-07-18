@@ -1,11 +1,11 @@
 """Log hygiene: redact secrets and tokens from every log line.
 
 Logs must never carry API keys, JWTs, Authorization headers, or similar
-credentials (CLAUDE.md rule 2). A formatter — rather than a filter — does the
+credentials (CLAUDE.md rule 2). A formatter (rather than a filter) does the
 redaction so it runs after `msg % args` is rendered, catching secrets that
 arrive through interpolation as well as literals.
 
-This scrubs obvious credential shapes defensively; it is a backstop, not a
+This scrubs obvious credential shapes defensively. It is a backstop, not a
 license to log sensitive data. Application code still must not log raw request
 bodies or user PII.
 """
@@ -17,9 +17,9 @@ _REDACTED = "[REDACTED]"
 
 # Ordered, specific-first. Each pattern maps a secret shape to its redaction.
 _PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    # JWTs (Supabase user tokens; Supabase anon/service keys are JWTs too)
+    # JWTs (Supabase user tokens, and Supabase anon/service keys are JWTs too)
     (re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"), "[REDACTED_JWT]"),
-    # Bearer <token> — consume the token itself (a token never contains spaces)
+    # Bearer <token>, consume the token itself (a token never contains spaces)
     (re.compile(r"(?i)\bbearer\s+\S+"), "Bearer " + _REDACTED),
     # Provider key shapes: Anthropic sk-ant-.../sk-..., Tavily tvly-...,
     # webhook whsec_..., Supabase sb_secret_...

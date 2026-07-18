@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react"
 /*
  * Shown after the last section of a FREE SAMPLE report. The sample is a
  * smaller but complete deliverable (competitive read plus one scored
- * concept); this band frames the full report as the next step, never the
+ * concept). This band frames the full report as the next step, never the
  * sample as incomplete. Hidden when printing, like the other action chrome.
  */
 export function SampleUpsell() {

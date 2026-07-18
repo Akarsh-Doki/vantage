@@ -100,7 +100,7 @@ export default function NewReportPage() {
         const key = field === "competitor_urls" && index !== undefined ? `competitor_${String(index)}` : String(field)
         if (!(key in next)) next[key] = issue.message
       }
-      // competitor indices refer to the filtered list; map back to filled rows
+      // competitor indices refer to the filtered list. Map back to filled rows
       setErrors(next)
       return null
     }
@@ -114,14 +114,14 @@ export default function NewReportPage() {
     if (!input) return
     setPending(mode)
     try {
-      // Both kinds start an async run and land on the same progress view:
-      // the polling stepper takes over immediately, no blocked form.
+      // Both kinds start an async run and land on the same progress view.
+      // The polling stepper takes over immediately, no blocked form.
       const created = mode === "full" ? await api.createReport(input) : await api.createSample(input)
       router.push(`/reports/${created.run_id}`)
       return // keep the button disabled while navigating
     } catch (err) {
       if (err instanceof PaymentRequiredError) {
-        // The backend decides paid/free. 402 on full = upsell; 402 on sample =
+        // The backend decides paid/free. 402 on full = upsell. 402 on sample =
         // the one free sample is used.
         setGate(mode === "full" ? { kind: "upsell" } : { kind: "sample_used", message: err.message })
       } else {

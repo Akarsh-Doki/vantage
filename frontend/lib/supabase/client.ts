@@ -1,7 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr"
 
 /**
- * Browser Supabase client (singleton per tab). Uses only the public anon key;
+ * Browser Supabase client (singleton per tab). Uses only the public anon key.
  * RLS on the backend tables is what enforces access, never this client.
  */
 export function getSupabaseBrowserClient() {

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
  * same ReportData shape from the backend, so swapping sample for live data is
  * a data change, not a redesign. All values are illustrative fiction.
  *
- * Deliberately prose-first, matching what real runs produce: the cites-gated
+ * Deliberately prose-first, matching what real runs produce. The cites-gated
  * charts (positioning scatter, segment shares, funnel) are rare in real
  * reports, so this demo leads with the read, the positioning, the strategy,
  * and the concepts instead of leaning on charts (Task 7 decision).
@@ -57,9 +57,9 @@ const sampleReport: ReportData = {
   },
 
   landscape: {
-    // No positioning scatter here on purpose: real reports only earn that
+    // No positioning scatter here on purpose. Real reports only earn that
     // chart when the research supplies cited placements, which is rare. The
-    // demo shows what a typical real report shows: the read and the table.
+    // demo shows what a typical real report shows, the read and the table.
     lede: "Five competitors, read on the two things buyers actually weigh: what they pay, and how fresh the coffee arrives.",
     analysis: [
       {
@@ -105,9 +105,9 @@ const sampleReport: ReportData = {
   },
 
   audience: {
-    // No segment-share chart here on purpose: real reports only earn that
+    // No segment-share chart here on purpose. Real reports only earn that
     // chart when research states real percentages, which is rare. The demo
-    // shows what a typical real report shows: the persona.
+    // shows what a typical real report shows, the persona.
     persona: {
       name: "The Ritual Brewer",
       ageRange: "28 to 45",
@@ -166,7 +166,7 @@ const sampleReport: ReportData = {
       { name: "Local sampling & events", weight: 20, rationale: "sampling answers the taste objection no ad can, then converts on the spot" },
       { name: "Paid search & social", weight: 15, rationale: "captures people already searching for fresh roasted subscriptions" },
     ],
-    // No funnel chart here on purpose: real reports only earn it when the
+    // No funnel chart here on purpose. Real reports only earn it when the
     // research states real conversion or retention benchmarks, which is rare.
     pillars: [
       {
